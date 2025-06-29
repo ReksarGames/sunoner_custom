@@ -1,0 +1,17 @@
+if(VCPKG_CMAKE_SYSTEM_NAME AND NOT VCPKG_CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
+    set(VCPKG_POLICY_EMPTY_PACKAGE enabled)
+    return()
+endif()
+
+vcpkg_from_github(
+    OUT_SOURCE_PATH SOURCE_PATH
+    REPO tronkko/dirent
+    REF "${VERSION}"
+    SHA512 5d524160125577121d5906b05da65c5d8dfa2c48291e8ce5b4890e246e9e43322a26985f27096c9c49d4daf422da388007af352e636d2350a95f523cbb4fe37d
+    HEAD_REF master
+)
+file(INSTALL ${SOURCE_PATH}/include/ DESTINATION ${CURRENT_PACKAGES_DIR}/include)
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")
+vcpkg_copy_pdbs()
+
+set(VCPKG_POLICY_ALLOW_RESTRICTED_HEADERS enabled)

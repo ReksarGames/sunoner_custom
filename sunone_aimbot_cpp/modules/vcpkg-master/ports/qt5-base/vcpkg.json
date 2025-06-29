@@ -1,0 +1,98 @@
+{
+  "name": "qt5-base",
+  "version": "5.15.16",
+  "port-version": 4,
+  "description": "Qt Base provides the basic non-GUI functionality required by all Qt applications.",
+  "homepage": "https://www.qt.io/",
+  "license": null,
+  "dependencies": [
+    {
+      "name": "at-spi2-core",
+      "platform": "linux"
+    },
+    {
+      "name": "dbus",
+      "platform": "linux"
+    },
+    "double-conversion",
+    "egl-registry",
+    {
+      "name": "fontconfig",
+      "platform": "!windows"
+    },
+    "freetype",
+    "harfbuzz",
+    "libjpeg-turbo",
+    "libpng",
+    {
+      "name": "opengl",
+      "platform": "!windows"
+    },
+    {
+      "name": "pcre2",
+      "default-features": false
+    },
+    {
+      "name": "qt5-base",
+      "host": true,
+      "default-features": false
+    },
+    {
+      "name": "vcpkg-cmake-get-vars",
+      "host": true
+    },
+    {
+      "name": "vcpkg-pkgconfig-get-modules",
+      "host": true
+    },
+    "zlib",
+    "zstd"
+  ],
+  "default-features": [
+    "openssl"
+  ],
+  "features": {
+    "icu": {
+      "description": "Enable ICU support",
+      "dependencies": [
+        {
+          "name": "icu",
+          "platform": "!uwp"
+        }
+      ]
+    },
+    "latest": {
+      "description": "(deprecated)"
+    },
+    "mysqlplugin": {
+      "description": "Build the sql plugin for connecting to mysql databases",
+      "dependencies": [
+        "libmysql"
+      ]
+    },
+    "openssl": {
+      "description": "Build with OpenSSL support",
+      "dependencies": [
+        "openssl"
+      ]
+    },
+    "postgresqlplugin": {
+      "description": "Build the sql plugin for connecting to postgresql databases",
+      "dependencies": [
+        "libpq"
+      ]
+    },
+    "sqlite3plugin": {
+      "description": "Build the sql plugin for connecting to sqlite3 databases",
+      "dependencies": [
+        "sqlite3"
+      ]
+    },
+    "vulkan": {
+      "description": "Enable Vulkan support in QtGui",
+      "dependencies": [
+        "vulkan"
+      ]
+    }
+  }
+}
