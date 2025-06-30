@@ -3,6 +3,7 @@
 #include <winsock2.h>
 #include <Windows.h>
 
+#define _USE_MATH_DEFINES
 #include <cmath>
 #include <algorithm>
 #include <chrono>
@@ -328,55 +329,6 @@ bool MouseThread::check_target_in_scope(double target_x, double target_y, double
     return (center_x > x1 && center_x < x2 && center_y > y1 && center_y < y2);
 }
 
-void MouseThread::moveMouse(const AimbotTarget& target)
-{
-    std::lock_guard lg(input_method_mutex);
-
-    auto predicted = predict_target_position(
-        target.x + target.w / 2.0,
-        target.y + target.h / 2.0);
-
-    auto mv = calc_movement(predicted.first, predicted.second);
-    queueMove(static_cast<int>(mv.first), static_cast<int>(mv.second));
-}
-
-void MouseThread::moveMousePivot(double pivotX, double pivotY)
-{
-    std::lock_guard lg(input_method_mutex);
-
-    auto current_time = std::chrono::steady_clock::now();
-
-    if (prev_time.time_since_epoch().count() == 0 || !target_detected.load())
-    {
-        prev_time = current_time;
-        prev_x = pivotX; prev_y = pivotY;
-        prev_velocity_x = prev_velocity_y = 0.0;
-
-        auto m0 = calc_movement(pivotX, pivotY);
-        queueMove(static_cast<int>(m0.first), static_cast<int>(m0.second));
-        return;
-    }
-
-    double dt = std::chrono::duration<double>(current_time - prev_time).count();
-    prev_time = current_time;
-    dt = std::max(dt, 1e-8);
-
-    double vx = std::clamp((pivotX - prev_x) / dt, -20000.0, 20000.0);
-    double vy = std::clamp((pivotY - prev_y) / dt, -20000.0, 20000.0);
-    prev_x = pivotX; prev_y = pivotY;
-    prev_velocity_x = vx;  prev_velocity_y = vy;
-
-    double predX = pivotX + vx * prediction_interval + vx * 0.002;
-    double predY = pivotY + vy * prediction_interval + vy * 0.002;
-
-    auto mv = calc_movement(predX, predY);
-    int mx = static_cast<int>(mv.first);
-    int my = static_cast<int>(mv.second);
-
-    if (wind_mouse_enabled)  windMouseMoveRelative(mx, my);
-    else                     queueMove(mx, my);
-}
-
 void MouseThread::pressMouse(const AimbotTarget& target)
 {
     std::lock_guard<std::mutex> lock(input_method_mutex);
@@ -616,4 +568,133 @@ void MouseThread::setHidConnectionV2(HidConnectionV2* newArduinoHid)
 {
     std::lock_guard<std::mutex> lock(input_method_mutex);
     arduinoHid = newArduinoHid;
+}
+
+// easing-функция для плавности
+double MouseThread::easeInOut(double t) {
+    return -0.5 * (std::cos(M_PI * t) - 1.0);
+}
+
+// Управление дробной частью, чтобы не терять пиксели
+std::pair<double, double> MouseThread::addOverflow(
+    double dx, double dy,
+    double& overflow_x, double& overflow_y)
+{
+    double int_x = 0.0, int_y = 0.0;
+    double frac_x = std::modf(dx + overflow_x, &int_x);
+    double frac_y = std::modf(dy + overflow_y, &int_y);
+
+    // Если дробная часть вдруг вышла за [-1;1], корректируем
+    if (std::abs(frac_x) > 1.0) {
+        double extra = 0.0;
+        frac_x = std::modf(frac_x, &extra);
+        int_x += extra;
+    }
+    if (std::abs(frac_y) > 1.0) {
+        double extra = 0.0;
+        frac_y = std::modf(frac_y, &extra);
+        int_y += extra;
+    }
+
+    overflow_x = frac_x;
+    overflow_y = frac_y;
+    return { int_x, int_y };
+}
+
+// «Микрошаговая» плавная наводка
+void MouseThread::moveMouseWithSmoothing(double targetX, double targetY)
+{
+    if (smoothness <= 0) smoothness = 1;
+
+    static double startX = 0.0, startY = 0.0;
+    static double prevX = 0.0, prevY = 0.0;
+    static double lastTX = 0.0, lastTY = 0.0;
+    static int    frame = 0;
+
+    std::lock_guard<std::mutex> lg(input_method_mutex);
+
+    // Если цель сильно сместилась или это первый кадр — сброс
+    if (frame == 0 || std::hypot(targetX - lastTX, targetY - lastTY) > 1.0) {
+        startX = center_x;
+        startY = center_y;
+        prevX = startX;
+        prevY = startY;
+        frame = 0;
+    }
+    lastTX = targetX;
+    lastTY = targetY;
+
+    // Прокручиваем кадр сглаживания
+    int N = smoothness;
+    frame = std::min(frame + 1, N);
+    double t = double(frame) / N;
+    double p = easeInOut(t);
+
+    double curX = startX + (targetX - startX) * p;
+    double curY = startY + (targetY - startY) * p;
+
+    double dx = curX - prevX;
+    double dy = curY - prevY;
+
+    auto mv = addOverflow(dx, dy, move_overflow_x, move_overflow_y);
+    int ix = static_cast<int>(mv.first);
+    int iy = static_cast<int>(mv.second);
+    if (ix || iy) queueMove(ix, iy);
+
+    prevX = curX;
+    prevY = curY;
+}
+
+// Основной метод наведения
+void MouseThread::moveMouse(const AimbotTarget& target)
+{
+    auto predicted = predict_target_position(
+        target.x + target.w * 0.5,
+        target.y + target.h * 0.5);
+
+    if (use_smoothing) {
+        moveMouseWithSmoothing(predicted.first, predicted.second);
+    }
+    else {
+        auto mv = calc_movement(predicted.first, predicted.second);
+        if (wind_mouse_enabled)
+            windMouseMoveRelative(int(mv.first), int(mv.second));
+        else
+            queueMove(int(mv.first), int(mv.second));
+    }
+}
+
+// Аналогично для moveMousePivot
+void MouseThread::moveMousePivot(double pivotX, double pivotY)
+{
+    auto now = std::chrono::steady_clock::now();
+    if (prev_time.time_since_epoch().count() == 0 || !target_detected.load()) {
+        prev_time = now;
+        prev_x = pivotX;  prev_y = pivotY;
+        prev_velocity_x = prev_velocity_y = 0.0;
+    }
+    else {
+        double dt = std::max(1e-8,
+            std::chrono::duration<double>(now - prev_time).count());
+        prev_time = now;
+        double vx = std::clamp((pivotX - prev_x) / dt, -20000.0, 20000.0);
+        double vy = std::clamp((pivotY - prev_y) / dt, -20000.0, 20000.0);
+        prev_x = pivotX;  prev_y = pivotY;
+        prev_velocity_x = vx;  prev_velocity_y = vy;
+    }
+
+    // небольшой дополнительный апстрим для прогревания
+    double predX = pivotX + prev_velocity_x * (prediction_interval + 0.002);
+    double predY = pivotY + prev_velocity_y * (prediction_interval + 0.002);
+
+    if (use_smoothing) {
+        moveMouseWithSmoothing(predX, predY);
+    }
+    else {
+        auto mv = calc_movement(predX, predY);
+        if (wind_mouse_enabled)
+            windMouseMoveRelative(int(mv.first), int(mv.second));
+        else
+            queueMove(int(mv.first), int(mv.second));
+    }
 }

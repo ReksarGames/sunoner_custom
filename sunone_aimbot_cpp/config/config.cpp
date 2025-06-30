@@ -72,6 +72,9 @@ bool Config::loadConfig(const std::string& filename)
         minSpeedMultiplier = 0.1f;
         maxSpeedMultiplier = 0.1f;
 
+        smoothness = 100;
+        use_smoothing = true;
+
         predictionInterval = 0.01f;
         prediction_futurePositions = 20;
         draw_futurePositions = true;
@@ -297,6 +300,9 @@ bool Config::loadConfig(const std::string& filename)
     minSpeedMultiplier = (float)get_double("minSpeedMultiplier", 0.1);
     maxSpeedMultiplier = (float)get_double("maxSpeedMultiplier", 0.1);
 
+    smoothness = get_long("smoothness", 100);
+    use_smoothing = get_bool("use_smoothing", true);
+
     predictionInterval = (float)get_double("predictionInterval", 0.01);
     prediction_futurePositions = get_long("prediction_futurePositions", 20);
     draw_futurePositions = get_bool("draw_futurePositions", true);
@@ -454,6 +460,8 @@ bool Config::saveConfig(const std::string& filename)
         << "fovY = " << fovY << "\n"
         << "minSpeedMultiplier = " << minSpeedMultiplier << "\n"
         << "maxSpeedMultiplier = " << maxSpeedMultiplier << "\n"
+        << "smoothness = " << smoothness << "\n"
+        << "use_smoothing    = " << (use_smoothing ? "true" : "false") << "\n\n"
 
         << std::fixed << std::setprecision(2)
         << "predictionInterval = " << predictionInterval << "\n"

@@ -1,4 +1,5 @@
-﻿#ifndef MOUSE_H
+﻿// mouse.h
+#ifndef MOUSE_H
 #define MOUSE_H
 
 #define WIN32_LEAN_AND_MEAN
@@ -14,6 +15,7 @@
 #include <queue>
 #include <thread>
 #include <condition_variable>
+#include <cmath> // std::modf, std::cos, M_PI
 
 #include "AimbotTarget.h"
 #include "SerialConnection.h"
@@ -27,19 +29,17 @@
 class MouseThread
 {
 private:
-    double screen_width;
-    double screen_height;
+    // Основные параметры
+    double screen_width, screen_height;
     double prediction_interval;
-    double fov_x;
-    double fov_y;
+    double fov_x, fov_y;
     double max_distance;
-    double min_speed_multiplier;
-    double max_speed_multiplier;
-    double center_x;
-    double center_y;
+    double min_speed_multiplier, max_speed_multiplier;
+    double center_x, center_y;
     bool   auto_shoot;
     float  bScope_multiplier;
 
+    // Для предсказания
     double prev_x, prev_y;
     double prev_velocity_x, prev_velocity_y;
     std::chrono::time_point<std::chrono::steady_clock> prev_time;
@@ -47,6 +47,7 @@ private:
     std::atomic<bool> target_detected{ false };
     std::atomic<bool> mouse_pressed{ false };
 
+    // Интерфейсы ввода
     SerialConnection* serial;
     KmboxConnection* kmbox;
     KmboxNetConnection* kmbox_net;
@@ -55,37 +56,52 @@ private:
     HIDConnection* hid;
     HidConnectionV2* arduinoHid;
 
+    // Отправка движений
     void sendMovementToDriver(int dx, int dy);
+    struct Move { int dx, dy; };
+    std::queue<Move>            moveQueue;
+    std::mutex                  queueMtx;
+    std::condition_variable     queueCv;
+    const size_t                queueLimit = 5;
+    std::thread                 moveWorker;
+    std::atomic<bool>           workerStop{ false };
 
-    struct Move { int dx; int dy; };
+    // Флаг выбора логики
+    bool use_smoothing = true;  // true — easing, false — старая ветка
 
-    std::queue<Move>              moveQueue;
-    std::mutex                    queueMtx;
-    std::condition_variable       queueCv;
-    const size_t                  queueLimit = 5;
-    std::thread                   moveWorker;
-    std::atomic<bool>             workerStop{ false };
-
-    std::vector<std::pair<double, double>> futurePositions;
-    std::mutex                    futurePositionsMutex;
-
-    void moveWorkerLoop();
-    void queueMove(int dx, int dy);
-
+    // Для «ветра»
     bool   wind_mouse_enabled = true;
     double wind_G, wind_W, wind_M, wind_D;
     void   windMouseMoveRelative(int dx, int dy);
 
-    std::pair<double, double> calc_movement(double target_x, double target_y);
+    // Расчёт базового движения и скорости
+    std::pair<double, double> calc_movement(double tx, double ty);
     double calculate_speed_multiplier(double distance);
+
+    // Хранение прогнозов
+    std::vector<std::pair<double, double>> futurePositions;
+    std::mutex                            futurePositionsMutex;
+
+    void moveWorkerLoop();
+    void queueMove(int dx, int dy);
+
+    // Параметры для сглаживания
+    int    smoothness{ 100 };
+    double move_overflow_x{ 0.0 }, move_overflow_y{ 0.0 };
+
+    // Методы для easing-сглаживания
+    double easeInOut(double t);
+    std::pair<double, double> addOverflow(double dx, double dy,
+        double& overflow_x, double& overflow_y);
+    void moveMouseWithSmoothing(double targetX, double targetY);
 
 public:
     std::mutex input_method_mutex;
 
     MouseThread(
-        int  resolution,
-        int  fovX,
-        int  fovY,
+        int resolution,
+        int fovX,
+        int fovY,
         double minSpeedMultiplier,
         double maxSpeedMultiplier,
         double predictionInterval,
@@ -94,7 +110,7 @@ public:
         SerialConnection* serialConnection = nullptr,
         GhubMouse* gHubMouse = nullptr,
         KmboxConnection* kmboxConnection = nullptr,
-        KmboxNetConnection* Kmbox_Net_Connection = nullptr,
+        KmboxNetConnection* kmboxNetConnection = nullptr,
         MakcuConnection* makcu = nullptr,
         HIDConnection* hid = nullptr,
         HidConnectionV2* arduinoHid = nullptr
@@ -112,31 +128,53 @@ public:
         float bScope_multiplier
     );
 
+    // Переключатель логики
+    void setUseSmoothing(bool v) { use_smoothing = v; }
+    bool isUsingSmoothing() const { return use_smoothing; }
+
+    // Настройка «гладкости»
+    void setSmoothness(int s) { smoothness = (s > 0 ? s : 1); }
+    int  getSmoothness() const { return smoothness; }
+
+    // API движения и кликов
     void moveMousePivot(double pivotX, double pivotY);
-    std::pair<double, double> predict_target_position(double target_x, double target_y);
+    std::pair<double, double> predict_target_position(double x, double y);
     void moveMouse(const AimbotTarget& target);
     void pressMouse(const AimbotTarget& target);
     void releaseMouse();
     void resetPrediction();
     void checkAndResetPredictions();
-    bool check_target_in_scope(double target_x, double target_y,
-        double target_w, double target_h, double reduction_factor);
+    bool check_target_in_scope(double x, double y,
+        double w, double h, double reduction_factor);
 
-    std::vector<std::pair<double, double>> predictFuturePositions(double pivotX, double pivotY, int frames);
-    void storeFuturePositions(const std::vector<std::pair<double, double>>& positions);
+    // Будущие позиции
+    std::vector<std::pair<double, double>> predictFuturePositions(
+        double pivotX, double pivotY, int frames);
+    void storeFuturePositions(
+        const std::vector<std::pair<double, double>>& pos);
     void clearFuturePositions();
     std::vector<std::pair<double, double>> getFuturePositions();
 
-    void setSerialConnection(SerialConnection* newSerial);
-    void setKmboxConnection(KmboxConnection* newKmbox);
-    void setKmboxNetConnection(KmboxNetConnection* newKmbox_net);
-    void setGHubMouse(GhubMouse* newGHub);
-    void setHidConnection(HIDConnection* newHid);
-    void setMakcuConnection(MakcuConnection* newMakcu);
-    void setHidConnectionV2(HidConnectionV2* arduinoHid);
+    // Сеттеры интерфейсов
+    void setSerialConnection(SerialConnection* s);
+    void setKmboxConnection(KmboxConnection* k);
+    void setKmboxNetConnection(KmboxNetConnection* k);
+    void setGHubMouse(GhubMouse* g);
+    void setHidConnection(HIDConnection* h);
+    void setMakcuConnection(MakcuConnection* m);
+    void setHidConnectionV2(HidConnectionV2* a);
 
-    void setTargetDetected(bool detected) { target_detected.store(detected); }
-    void setLastTargetTime(const std::chrono::steady_clock::time_point& t) { last_target_time = t; }
+    void setSmoothnessValue(int value) { smoothness = value; }
+    int getSmoothnessValue() const { return smoothness; }
+
+    void setTargetDetected(bool d) {
+        target_detected.store(d);
+    }
+    void setLastTargetTime(
+        const std::chrono::steady_clock::time_point& t)
+    {
+        last_target_time = t;
+    }
 };
 
 #endif // MOUSE_H

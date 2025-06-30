@@ -281,6 +281,7 @@ void mouseThreadFunction(MouseThread& mouseThread)
                     config.auto_shoot,
                     config.bScope_multiplier
                 );
+                mouseThread.setSmoothnessValue(config.smoothness);
             }
             detection_resolution_changed.store(false);
         }
@@ -445,6 +446,9 @@ int main()
             hid,
             arduinoHid
         );
+
+        mouseThread.setUseSmoothing(config.use_smoothing);
+        mouseThread.setSmoothnessValue(config.smoothness);
 
         globalMouseThread = &mouseThread;
         assignInputDevices();

@@ -23,6 +23,7 @@ float prev_snapRadius = config.snapRadius;
 float prev_nearRadius = config.nearRadius;
 float prev_speedCurveExponent = config.speedCurveExponent;
 float prev_snapBoostFactor = config.snapBoostFactor;
+int prev_smoothness = config.smoothness;
 
 bool  prev_wind_mouse_enabled = config.wind_mouse_enabled;
 float prev_wind_G = config.wind_G;
@@ -96,11 +97,91 @@ static void draw_target_correction_demo()
     }
 }
 
+static void draw_smoothing_demo()
+{
+    if (!ImGui::CollapsingHeader("Smoothing Demo"))
+        return;
+
+    // Размер канваса
+    ImVec2 canvas_sz(220, 60);
+    ImGui::InvisibleButton("##smoothing_demo", canvas_sz);
+    ImVec2 p0 = ImGui::GetItemRectMin();
+    ImVec2 p1 = ImGui::GetItemRectMax();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+
+    // Нарисуем фон
+    dl->AddRectFilled(p0, p1, IM_COL32(10, 10, 10, 255));
+
+    // Позиции начала (зелёная) и цели (красная)
+    float radius = 6.0f;
+    ImVec2 start{ p0.x + radius + 2.0f, (p0.y + p1.y) * 0.5f };
+    ImVec2 target{ p1.x - radius - 2.0f, (p0.y + p1.y) * 0.5f };
+
+    // Статика для демо
+    static int  step = 0;
+    static int  lastSmoothness = config.smoothness;
+    static bool lastUseSmooth = config.use_smoothing;
+
+    // Если конфиг изменился — сбрасываем демо
+    if (lastSmoothness != config.smoothness ||
+        lastUseSmooth != config.use_smoothing)
+    {
+        step = 0;
+        lastSmoothness = config.smoothness;
+        lastUseSmooth = config.use_smoothing;
+    }
+
+    // Вычисляем текущую позицию зелёной точки
+    ImVec2 curr = start;
+    if (!config.use_smoothing)
+    {
+        // мгновенно в цель
+        curr = target;
+    }
+    else
+    {
+        // увеличиваем шаг, но не больше smoothness
+        step = std::min(step + 1, config.smoothness);
+
+        double t = config.smoothness > 0
+            ? double(step) / config.smoothness
+            : 1.0;
+
+        // easeInOut: -0.5*(cos(πt) - 1)
+        const double PI = std::acos(-1.0);
+        double p = -0.5 * (std::cos(PI * t) - 1.0);
+
+        curr.x = float(start.x + (target.x - start.x) * p);
+        curr.y = start.y;
+    }
+
+    // Рисуем красную цель
+    dl->AddCircleFilled(target, radius, IM_COL32(255, 50, 50, 200));
+    // Рисуем зелёную движущуюся точку
+    dl->AddCircleFilled(curr, radius, IM_COL32(50, 255, 50, 255));
+
+    // (опционально) обводка
+    dl->AddCircle(target, radius, IM_COL32(255, 255, 255, 50), 16, 1.0f);
+    dl->AddCircle(curr, radius, IM_COL32(255, 255, 255, 50), 16, 1.0f);
+}
+
+
 void draw_mouse()
 {
     ImGui::SeparatorText("FOV");
     ImGui::SliderInt("FOV X", &config.fovX, 10, 120);
     ImGui::SliderInt("FOV Y", &config.fovY, 10, 120);
+
+    ImGui::SliderInt("Smoothness", &config.smoothness, 1, 200, "%d");
+    ImGui::Checkbox("Enable Smooth Movement", &config.use_smoothing);
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
+        config.saveConfig();
+        input_method_changed.store(true);
+        if (globalMouseThread)
+            globalMouseThread->setUseSmoothing(config.use_smoothing);
+    }
+
+    draw_smoothing_demo();
 
     ImGui::SeparatorText("Speed Multiplier");
     ImGui::SliderFloat("Min Speed Multiplier", &config.minSpeedMultiplier, 0.1f, 5.0f, "%.1f");
@@ -628,6 +709,7 @@ void draw_mouse()
 
     if (prev_fovX != config.fovX ||
         prev_fovY != config.fovY ||
+        config.smoothness != prev_smoothness ||
         prev_minSpeedMultiplier != config.minSpeedMultiplier ||
         prev_maxSpeedMultiplier != config.maxSpeedMultiplier ||
         prev_predictionInterval != config.predictionInterval ||
@@ -638,6 +720,7 @@ void draw_mouse()
     {
         prev_fovX = config.fovX;
         prev_fovY = config.fovY;
+        prev_smoothness = config.smoothness;
         prev_minSpeedMultiplier = config.minSpeedMultiplier;
         prev_maxSpeedMultiplier = config.maxSpeedMultiplier;
         prev_predictionInterval = config.predictionInterval;
@@ -657,6 +740,8 @@ void draw_mouse()
             config.bScope_multiplier);
 
         config.saveConfig();
+        globalMouseThread->setSmoothnessValue(config.smoothness);
+
     }
 
     if (prev_wind_mouse_enabled != config.wind_mouse_enabled ||

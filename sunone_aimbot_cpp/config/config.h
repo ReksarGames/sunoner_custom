@@ -36,6 +36,9 @@ public:
     float minSpeedMultiplier;
     float maxSpeedMultiplier;
 
+    int smoothness;
+    bool use_smoothing;
+
     float predictionInterval;
     int prediction_futurePositions;
     bool draw_futurePositions;
