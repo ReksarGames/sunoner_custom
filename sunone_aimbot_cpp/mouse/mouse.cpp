@@ -585,31 +585,8 @@ void MouseThread::setHidConnectionV2(HidConnectionV2* newArduinoHid)
 
 void MouseThread::moveMouseWithKalmanSmoothing(double targetX, double targetY)
 {
-    // 1) Получаем текущее время и dt
-    auto now = std::chrono::steady_clock::now();
-    double dt;
-    if (prevKalmanTime.time_since_epoch().count() == 0) {
-        dt = 1.0 / 60;  // первый кадр — предположим 60 FPS
-    }
-    else {
-        dt = std::chrono::duration<double>(now - prevKalmanTime).count();
-        dt = std::max(dt, 1e-8);
-    }
-    prevKalmanTime = now;
-
-    // 2) Предсказываем цель по вашей логике (учтёт скорость и задержку детектора)
-    auto [predX, predY] = predict_target_position(targetX, targetY);
-
-    // 3) Сглаживаем Kalman-фильтром
-    double smoothX = kfX.update(predX, dt);
-    double smoothY = kfY.update(predY, dt);
-
-    // 4) Переводим в дельты движения (учитывая FOV, speed-мультiplier, FPS-коррекцию)
-    auto [mvX, mvY] = calc_movement(smoothX, smoothY);
-
-    // 5) Отправляем драйверу (пакуем в очередь потокобезопасно)
-    queueMove(static_cast<int>(std::round(mvX)),
-        static_cast<int>(std::round(mvY)));
+    // 1) dt для Калмана
+    return;
 }
 
 
@@ -646,28 +623,8 @@ std::pair<double, double> MouseThread::addOverflow(
 
 void MouseThread::moveMouseWithSmoothingKalma(double smoothX, double smoothY)
 {
-    auto now = std::chrono::steady_clock::now();
-    double elapsed = std::chrono::duration<double, std::milli>(now - smoothingStartTime).count();
-    double t = std::clamp(elapsed / smoothingDurationMs, 0.0, 1.0);
-    double p = easeInOut(t);
-
-    double curX = smoothingStartX + (smoothingTargetX - smoothingStartX) * p;
-    double curY = smoothingStartY + (smoothingTargetY - smoothingStartY) * p;
-
-    double dx = curX - center_x;
-    double dy = curY - center_y;
-
-    auto [ix, iy] = addOverflow(dx, dy, move_overflow_x, move_overflow_y);
-
-    if (ix || iy) {
-        queueMove(int(ix), int(iy));
-        center_x += ix;
-        center_y += iy;
-    }
-
-    if (t >= 1.0) {
-        smoothingActive = false;
-    }
+    // TODO: Сделать после Калма
+    return;
 }
 
 // «Микрошаговая» плавная наводка
@@ -751,23 +708,7 @@ void MouseThread::moveMouse(const AimbotTarget& target)
         moveMouseWithSmoothing(predX, predY);
     }
     else if (use_kalman && use_smoothing) {
-        // === Комбинированный режим: Калман → easing ===
-        // 3.1) Прогон через Калман
-        double kX = kfX.update(predX, dt);
-        double kY = kfY.update(predY, dt);
-
-        // 3.2) Инициализируем easing-параметры
-        smoothingStartX = center_x;
-        smoothingStartY = center_y;
-        smoothingTargetX = kX;
-        smoothingTargetY = kY;
-        // длительность easing в миллисекундах
-        smoothingDurationMs = (1000.0 / config.capture_fps) * smoothness;
-        smoothingStartTime = std::chrono::steady_clock::now();
-        smoothingActive = true;
-
-        // 3.3) Запускаем микрошаговое сглаживание через Kalman+easing
-        moveMouseWithSmoothingKalma(kX, kY);
+        return;
     }
     else {
         // === Старая механика «без всего» ===
@@ -812,21 +753,7 @@ void MouseThread::moveMousePivot(double pivotX, double pivotY)
         moveMouseWithSmoothing(predX, predY);
     }
     else if (use_kalman && use_smoothing) {
-        // комбинированный
-        double kX = kfX.update(predX,
-            std::max(1e-8, std::chrono::duration<double>(now - prevKalmanTime).count()));
-        double kY = kfY.update(predY,
-            std::max(1e-8, std::chrono::duration<double>(now - prevKalmanTime).count()));
-
-        smoothingStartX = center_x;
-        smoothingStartY = center_y;
-        smoothingTargetX = kX;
-        smoothingTargetY = kY;
-        smoothingDurationMs = (1000.0 / config.capture_fps) * smoothness;
-        smoothingStartTime = std::chrono::steady_clock::now();
-        smoothingActive = true;
-
-        moveMouseWithSmoothingKalma(kX, kY);
+        return;
     }
     else {
         auto [mvX, mvY] = calc_movement(predX, predY);

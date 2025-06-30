@@ -121,6 +121,10 @@ private:
     std::chrono::steady_clock::time_point smoothingStartTime{};
     void moveMouseWithSmoothingKalma(double smoothX, double smoothY);
 
+    double last_dx{ 0.0 };
+    double last_dy{ 0.0 };
+    double last_kX{ 0.0 };
+    double last_kY{ 0.0 };
 public:
     std::mutex input_method_mutex;
 

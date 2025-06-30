@@ -469,7 +469,7 @@ bool Config::saveConfig(const std::string& filename)
         << "minSpeedMultiplier = " << minSpeedMultiplier << "\n"
         << "maxSpeedMultiplier = " << maxSpeedMultiplier << "\n"
         << "smoothness = " << smoothness << "\n"
-        << "use_smoothing    = " << (use_smoothing ? "true" : "false") << "\n\n"
+        << "use_smoothing = " << (use_smoothing ? "true" : "false") << "\n"
         << "use_kalman = " << (use_kalman ? "true" : "false") << "\n\n"
         << "kalman_process_noise = " << kalman_process_noise << "\n"
         << "kalman_measurement_noise = " << kalman_measurement_noise << "\n\n"
