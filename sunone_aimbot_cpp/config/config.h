@@ -39,6 +39,10 @@ public:
     int smoothness;
     bool use_smoothing;
 
+    bool use_kalman;
+    float kalman_process_noise;
+    float kalman_measurement_noise;
+
     float predictionInterval;
     int prediction_futurePositions;
     bool draw_futurePositions;

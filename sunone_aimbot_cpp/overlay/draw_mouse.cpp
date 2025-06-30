@@ -23,7 +23,12 @@ float prev_snapRadius = config.snapRadius;
 float prev_nearRadius = config.nearRadius;
 float prev_speedCurveExponent = config.speedCurveExponent;
 float prev_snapBoostFactor = config.snapBoostFactor;
+
 int prev_smoothness = config.smoothness;
+static bool  prev_use_smoothing = config.use_smoothing;
+static bool  prev_use_kalman = config.use_kalman;
+static float prev_kalman_process_noise = config.kalman_process_noise;
+static float prev_kalman_measure_noise = config.kalman_measurement_noise;
 
 bool  prev_wind_mouse_enabled = config.wind_mouse_enabled;
 float prev_wind_G = config.wind_G;
@@ -97,74 +102,92 @@ static void draw_target_correction_demo()
     }
 }
 
-static void draw_smoothing_demo()
+struct DemoKalman1D {
+    double x{ 0 }, v{ 0 }, P{ 1 }, Q, R;
+    DemoKalman1D(double processNoise, double measurementNoise)
+        : Q(processNoise), R(measurementNoise) {
+    }
+    double update(double z, double dt) {
+        x += v * dt;
+        P += Q * dt;
+        double K = P / (P + R);
+        x += K * (z - x);
+        P *= (1 - K);
+        v = (1 - K) * v + K * ((z - x) / std::max(dt, 1e-8));
+        return x;
+    }
+};
+
+static void draw_smoothing_kalman_demo()
 {
-    if (!ImGui::CollapsingHeader("Smoothing Demo"))
+    if (!ImGui::CollapsingHeader("Smooth + Kalman Demo"))
         return;
 
-    // Размер канваса
-    ImVec2 canvas_sz(220, 60);
-    ImGui::InvisibleButton("##smoothing_demo", canvas_sz);
+    ImVec2 canvas_sz(220, 220);
+    ImGui::InvisibleButton("##sk_canvas", canvas_sz);
     ImVec2 p0 = ImGui::GetItemRectMin();
     ImVec2 p1 = ImGui::GetItemRectMax();
+    ImVec2 center{ (p0.x + p1.x) * 0.5f, (p0.y + p1.y) * 0.5f };
     ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->AddRectFilled(p0, p1, IM_COL32(30, 30, 30, 255));
 
-    // Нарисуем фон
-    dl->AddRectFilled(p0, p1, IM_COL32(10, 10, 10, 255));
+    static double last_t = ImGui::GetTime();
+    double now = ImGui::GetTime();
+    double dt = now - last_t;
+    last_t = now;
 
-    // Позиции начала (зелёная) и цели (красная)
-    float radius = 6.0f;
-    ImVec2 start{ p0.x + radius + 2.0f, (p0.y + p1.y) * 0.5f };
-    ImVec2 target{ p1.x - radius - 2.0f, (p0.y + p1.y) * 0.5f };
+    static double angle = 0.0;
+    angle += dt * 1.0;             
+    if (angle > 2 * 3.14159265358979323846) angle -= 2 * 3.14159265358979323846;
+    double rad = canvas_sz.x * 0.4;
+    double rawX = center.x + cos(angle) * rad;
+    double rawY = center.y + sin(angle) * rad;
 
-    // Статика для демо
-    static int  step = 0;
-    static int  lastSmoothness = config.smoothness;
-    static bool lastUseSmooth = config.use_smoothing;
-
-    // Если конфиг изменился — сбрасываем демо
-    if (lastSmoothness != config.smoothness ||
-        lastUseSmooth != config.use_smoothing)
-    {
-        step = 0;
-        lastSmoothness = config.smoothness;
-        lastUseSmooth = config.use_smoothing;
+    static DemoKalman1D kfX{ config.kalman_process_noise, config.kalman_measurement_noise },
+        kfY{ config.kalman_process_noise, config.kalman_measurement_noise };
+    static float lastQ = config.kalman_process_noise,
+        lastR = config.kalman_measurement_noise;
+    if (lastQ != config.kalman_process_noise || lastR != config.kalman_measurement_noise) {
+        kfX = DemoKalman1D(config.kalman_process_noise, config.kalman_measurement_noise);
+        kfY = DemoKalman1D(config.kalman_process_noise, config.kalman_measurement_noise);
+        lastQ = config.kalman_process_noise;
+        lastR = config.kalman_measurement_noise;
     }
 
-    // Вычисляем текущую позицию зелёной точки
-    ImVec2 curr = start;
-    if (!config.use_smoothing)
-    {
-        // мгновенно в цель
-        curr = target;
-    }
-    else
-    {
-        // увеличиваем шаг, но не больше smoothness
-        step = std::min(step + 1, config.smoothness);
+    double kalX = kfX.update(rawX, dt);
+    double kalY = kfY.update(rawY, dt);
 
-        double t = config.smoothness > 0
-            ? double(step) / config.smoothness
-            : 1.0;
+    static double easeStartX = center.x, easeStartY = center.y;
+    static double easeTargetX = kalX, easeTargetY = kalY;
+    static double easeTime = 0.0;
+    const double easeDur = 0.5; 
 
-        // easeInOut: -0.5*(cos(πt) - 1)
-        const double PI = std::acos(-1.0);
-        double p = -0.5 * (std::cos(PI * t) - 1.0);
-
-        curr.x = float(start.x + (target.x - start.x) * p);
-        curr.y = start.y;
+    if (hypot(kalX - easeTargetX, kalY - easeTargetY) > 5.0) {
+        easeStartX = center.x;
+        easeStartY = center.y;
+        easeTime = 0.0;
     }
 
-    // Рисуем красную цель
-    dl->AddCircleFilled(target, radius, IM_COL32(255, 50, 50, 200));
-    // Рисуем зелёную движущуюся точку
-    dl->AddCircleFilled(curr, radius, IM_COL32(50, 255, 50, 255));
+    easeTargetX = kalX;
+    easeTargetY = kalY;
+    easeTime = std::min(easeTime + dt, easeDur);
+    double t = easeTime / easeDur;
+    double p = -0.5 * (cos(3.14159265358979323846 * t) - 1.0);
+    double smX = easeStartX + (easeTargetX - easeStartX) * p;
+    double smY = easeStartY + (easeTargetY - easeStartY) * p;
+    if (t >= 1.0) {
+        easeStartX = smX;
+        easeStartY = smY;
+    }
 
-    // (опционально) обводка
-    dl->AddCircle(target, radius, IM_COL32(255, 255, 255, 50), 16, 1.0f);
-    dl->AddCircle(curr, radius, IM_COL32(255, 255, 255, 50), 16, 1.0f);
+    dl->AddCircleFilled({ (float)rawX, (float)rawY }, 4.0f, IM_COL32(255, 255, 255, 200));
+    dl->AddCircleFilled({ (float)kalX, (float)kalY }, 4.0f, IM_COL32(255, 100, 100, 200));
+    dl->AddCircleFilled({ (float)smX,  (float)smY }, 4.0f, IM_COL32(100, 255, 100, 200));
+
+    dl->AddText({ p0.x + 5, p0.y + 5 },
+        IM_COL32(200, 200, 200, 255),
+        "W=Raw  R=Kalman  G=Easing");
 }
-
 
 void draw_mouse()
 {
@@ -173,15 +196,39 @@ void draw_mouse()
     ImGui::SliderInt("FOV Y", &config.fovY, 10, 120);
 
     ImGui::SliderInt("Smoothness", &config.smoothness, 1, 200, "%d");
-    ImGui::Checkbox("Enable Smooth Movement", &config.use_smoothing);
-    if (ImGui::IsItemDeactivatedAfterEdit()) {
+    if (ImGui::Checkbox("Enable Smooth Movement", &config.use_smoothing))
+    {
         config.saveConfig();
         input_method_changed.store(true);
-        if (globalMouseThread)
-            globalMouseThread->setUseSmoothing(config.use_smoothing);
+        globalMouseThread->setUseSmoothing(config.use_smoothing);
     }
 
-    draw_smoothing_demo();
+    if (ImGui::Checkbox("Enable Kalman Filter", &config.use_kalman))
+    {
+        config.saveConfig();
+        input_method_changed.store(true);
+        globalMouseThread->setUseKalman(config.use_kalman);
+    }
+
+
+    if (config.use_kalman)
+    {
+        bool changed = false;
+        changed |= ImGui::SliderFloat("Kalman Process Noise", &config.kalman_process_noise, 0.0001f, 1.0f, "%.4f");
+        changed |= ImGui::SliderFloat("Kalman Measurement Noise", &config.kalman_measurement_noise, 0.0001f, 1.0f, "%.4f");
+        if (changed)
+        {
+            config.saveConfig();
+            input_method_changed.store(true);
+            globalMouseThread->setKalmanParams(
+                config.kalman_process_noise,
+                config.kalman_measurement_noise
+            );
+        }
+    }
+
+
+    draw_smoothing_kalman_demo();
 
     ImGui::SeparatorText("Speed Multiplier");
     ImGui::SliderFloat("Min Speed Multiplier", &config.minSpeedMultiplier, 0.1f, 5.0f, "%.1f");
@@ -710,6 +757,10 @@ void draw_mouse()
     if (prev_fovX != config.fovX ||
         prev_fovY != config.fovY ||
         config.smoothness != prev_smoothness ||
+        prev_use_smoothing != config.use_smoothing ||
+        prev_use_kalman != config.use_kalman ||
+        prev_kalman_process_noise != config.kalman_process_noise ||
+        prev_kalman_measure_noise != config.kalman_measurement_noise ||
         prev_minSpeedMultiplier != config.minSpeedMultiplier ||
         prev_maxSpeedMultiplier != config.maxSpeedMultiplier ||
         prev_predictionInterval != config.predictionInterval ||
@@ -721,6 +772,10 @@ void draw_mouse()
         prev_fovX = config.fovX;
         prev_fovY = config.fovY;
         prev_smoothness = config.smoothness;
+        prev_use_smoothing            = config.use_smoothing;
+        prev_use_kalman               = config.use_kalman;
+        prev_kalman_process_noise     = config.kalman_process_noise;
+        prev_kalman_measure_noise     = config.kalman_measurement_noise;
         prev_minSpeedMultiplier = config.minSpeedMultiplier;
         prev_maxSpeedMultiplier = config.maxSpeedMultiplier;
         prev_predictionInterval = config.predictionInterval;
@@ -741,7 +796,12 @@ void draw_mouse()
 
         config.saveConfig();
         globalMouseThread->setSmoothnessValue(config.smoothness);
-
+        globalMouseThread->setUseSmoothing(config.use_smoothing);
+        globalMouseThread->setUseKalman(config.use_kalman);
+        globalMouseThread->setKalmanParams(
+            config.kalman_process_noise,
+            config.kalman_measurement_noise
+        );
     }
 
     if (prev_wind_mouse_enabled != config.wind_mouse_enabled ||

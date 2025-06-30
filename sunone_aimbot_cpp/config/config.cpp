@@ -75,6 +75,10 @@ bool Config::loadConfig(const std::string& filename)
         smoothness = 100;
         use_smoothing = true;
 
+        use_kalman = false;
+        kalman_process_noise = 0.01f;
+        kalman_measurement_noise = 0.10f;
+
         predictionInterval = 0.01f;
         prediction_futurePositions = 20;
         draw_futurePositions = true;
@@ -303,6 +307,10 @@ bool Config::loadConfig(const std::string& filename)
     smoothness = get_long("smoothness", 100);
     use_smoothing = get_bool("use_smoothing", true);
 
+    use_kalman = get_bool("use_kalman", false);
+    kalman_process_noise = (float)get_double("kalman_process_noise", 0.01);
+    kalman_measurement_noise = (float)get_double("kalman_measurement_noise", 0.10);
+
     predictionInterval = (float)get_double("predictionInterval", 0.01);
     prediction_futurePositions = get_long("prediction_futurePositions", 20);
     draw_futurePositions = get_bool("draw_futurePositions", true);
@@ -462,6 +470,9 @@ bool Config::saveConfig(const std::string& filename)
         << "maxSpeedMultiplier = " << maxSpeedMultiplier << "\n"
         << "smoothness = " << smoothness << "\n"
         << "use_smoothing    = " << (use_smoothing ? "true" : "false") << "\n\n"
+        << "use_kalman = " << (use_kalman ? "true" : "false") << "\n\n"
+        << "kalman_process_noise = " << kalman_process_noise << "\n"
+        << "kalman_measurement_noise = " << kalman_measurement_noise << "\n\n"
 
         << std::fixed << std::setprecision(2)
         << "predictionInterval = " << predictionInterval << "\n"

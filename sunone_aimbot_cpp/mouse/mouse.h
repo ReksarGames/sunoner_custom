@@ -67,7 +67,8 @@ private:
     std::atomic<bool>           workerStop{ false };
 
     // Флаг выбора логики
-    bool use_smoothing = true;  // true — easing, false — старая ветка
+    bool use_smoothing = { false };
+    bool use_kalman{ false };
 
     // Для «ветра»
     bool   wind_mouse_enabled = true;
@@ -89,11 +90,36 @@ private:
     int    smoothness{ 100 };
     double move_overflow_x{ 0.0 }, move_overflow_y{ 0.0 };
 
-    // Методы для easing-сглаживания
     double easeInOut(double t);
     std::pair<double, double> addOverflow(double dx, double dy,
         double& overflow_x, double& overflow_y);
     void moveMouseWithSmoothing(double targetX, double targetY);
+
+    struct Kalman1D {
+        double x{ 0 }, v{ 0 }, P{ 1 }, Q, R;
+        Kalman1D(double processNoise, double measurementNoise)
+            : Q(processNoise), R(measurementNoise) {
+        }
+        double update(double z, double dt) {
+            x += v * dt;
+            P += Q * dt;
+            double K = P / (P + R);
+            x += K * (z - x);
+            P *= (1 - K);
+            v = (1 - K) * v + K * ((z - x) / std::max(dt, 1e-8));
+            return x;
+        }
+    };
+
+    Kalman1D    kfX{ 0.01, 0.1 }, kfY{ 0.01, 0.1 };
+    std::chrono::steady_clock::time_point prevKalmanTime{};
+    bool        smoothingActive = false;
+    int         smoothingSteps = 0;
+    double      smoothingStartX = 0, smoothingStartY = 0;
+    double      smoothingTargetX = 0, smoothingTargetY = 0;
+    double      smoothingDurationMs = 0;
+    std::chrono::steady_clock::time_point smoothingStartTime{};
+    void moveMouseWithSmoothingKalma(double smoothX, double smoothY);
 
 public:
     std::mutex input_method_mutex;
@@ -132,6 +158,9 @@ public:
     void setUseSmoothing(bool v) { use_smoothing = v; }
     bool isUsingSmoothing() const { return use_smoothing; }
 
+    void setUseKalman(bool v) { use_kalman = v; }
+    bool isUsingKalman() const { return use_kalman; }
+
     // Настройка «гладкости»
     void setSmoothness(int s) { smoothness = (s > 0 ? s : 1); }
     int  getSmoothness() const { return smoothness; }
@@ -166,6 +195,8 @@ public:
 
     void setSmoothnessValue(int value) { smoothness = value; }
     int getSmoothnessValue() const { return smoothness; }
+    void moveMouseWithKalmanSmoothing(double targetX, double targetY);
+    void setKalmanParams(double processNoise, double measurementNoise);
 
     void setTargetDetected(bool d) {
         target_detected.store(d);

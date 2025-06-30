@@ -281,7 +281,10 @@ void mouseThreadFunction(MouseThread& mouseThread)
                     config.auto_shoot,
                     config.bScope_multiplier
                 );
+                mouseThread.setUseSmoothing(config.use_smoothing);
+                mouseThread.setUseKalman(config.use_kalman);
                 mouseThread.setSmoothnessValue(config.smoothness);
+
             }
             detection_resolution_changed.store(false);
         }
@@ -449,6 +452,7 @@ int main()
 
         mouseThread.setUseSmoothing(config.use_smoothing);
         mouseThread.setSmoothnessValue(config.smoothness);
+        mouseThread.setUseKalman(config.use_kalman);
 
         globalMouseThread = &mouseThread;
         assignInputDevices();
