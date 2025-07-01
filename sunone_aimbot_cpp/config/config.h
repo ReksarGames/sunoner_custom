@@ -42,6 +42,8 @@ public:
     bool use_kalman;
     float kalman_process_noise;
     float kalman_measurement_noise;
+    float kalman_speed_multiplier_x;
+    float kalman_speed_multiplier_y;
 
     float predictionInterval;
     int prediction_futurePositions;

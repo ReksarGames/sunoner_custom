@@ -78,6 +78,8 @@ bool Config::loadConfig(const std::string& filename)
         use_kalman = false;
         kalman_process_noise = 0.01f;
         kalman_measurement_noise = 0.10f;
+        kalman_speed_multiplier_x = 1.0;
+        kalman_speed_multiplier_y = 1.0;
 
         predictionInterval = 0.01f;
         prediction_futurePositions = 20;
@@ -310,6 +312,8 @@ bool Config::loadConfig(const std::string& filename)
     use_kalman = get_bool("use_kalman", false);
     kalman_process_noise = (float)get_double("kalman_process_noise", 0.01);
     kalman_measurement_noise = (float)get_double("kalman_measurement_noise", 0.10);
+    kalman_speed_multiplier_x = (float)get_double("kalman_speed_multiplier_x", 1.0);
+    kalman_speed_multiplier_y = (float)get_double("kalman_speed_multiplier_y", 1.0);
 
     predictionInterval = (float)get_double("predictionInterval", 0.01);
     prediction_futurePositions = get_long("prediction_futurePositions", 20);
@@ -472,7 +476,9 @@ bool Config::saveConfig(const std::string& filename)
         << "use_smoothing = " << (use_smoothing ? "true" : "false") << "\n"
         << "use_kalman = " << (use_kalman ? "true" : "false") << "\n\n"
         << "kalman_process_noise = " << kalman_process_noise << "\n"
-        << "kalman_measurement_noise = " << kalman_measurement_noise << "\n\n"
+        << "kalman_measurement_noise = " << kalman_measurement_noise << "\n"
+        << "kalman_speed_multiplier_x = " << kalman_speed_multiplier_x << "\n"
+        << "kalman_speed_multiplier_y = " << kalman_speed_multiplier_y << "\n\n"
 
         << std::fixed << std::setprecision(2)
         << "predictionInterval = " << predictionInterval << "\n"

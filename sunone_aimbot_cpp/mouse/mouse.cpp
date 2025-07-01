@@ -574,7 +574,7 @@ void MouseThread::setHidConnection(HIDConnection* newHid)
 }
 void MouseThread::setMakcuConnection(MakcuConnection* newMakcu)
 {
-    std::lock_guard<std::mutex> lock(input_method_mutex);
+    std::lock_guard<std::mutex> lock(   input_method_mutex);
     makcu = newMakcu;
 }
 void MouseThread::setHidConnectionV2(HidConnectionV2* newArduinoHid)
@@ -583,12 +583,44 @@ void MouseThread::setHidConnectionV2(HidConnectionV2* newArduinoHid)
     arduinoHid = newArduinoHid;
 }
 
-void MouseThread::moveMouseWithKalmanSmoothing(double targetX, double targetY)
-{
-    // 1) dt для Калмана
-    return;
-}
+void MouseThread::moveMouseWithKalmanSmoothing(double targetX, double targetY) {
+    double rawX = targetX, rawY = targetY;
+    static double lastRawX = 0.0, lastRawY = 0.0;
+    static bool   firstCall = true;
+    const double  resetThreshold = 2.0; // порог в пикселях, можно крутить в config
 
+    // 0) Сброс при большом «прыжке» цели или первом вызове
+    if (firstCall || std::hypot(rawX - lastRawX, rawY - lastRawY) > resetThreshold) {
+        kfX.x = rawX;  kfX.v = 0.0;  kfX.P = 1.0;
+        kfY.x = rawY;  kfY.v = 0.0;  kfY.P = 1.0;
+        prevKalmanTime = std::chrono::steady_clock::now();
+        firstCall = false;
+    }
+    lastRawX = rawX;
+    lastRawY = rawY;
+
+    // 1) dt
+    auto now = std::chrono::steady_clock::now();
+    double dt = prevKalmanTime.time_since_epoch().count() == 0
+        ? 1.0 / static_cast<double>(config.capture_fps)
+        : std::max(std::chrono::duration<double>(now - prevKalmanTime).count(), 1e-8);
+    prevKalmanTime = now;
+
+    // 2) Predict+Update
+    double filtX = kfX.update(rawX, dt);
+    double filtY = kfY.update(rawY, dt);
+
+    // 3) В дельту мыши
+    auto [mvX, mvY] = calc_movement(filtX, filtY);
+    mvX *= kalman_speed_multiplier_x;
+    mvY *= kalman_speed_multiplier_y;
+
+    // 4) Отправка
+    int dx = static_cast<int>(std::round(mvX));
+    int dy = static_cast<int>(std::round(mvY));
+    if (wind_mouse_enabled) windMouseMoveRelative(dx, dy);
+    else                   queueMove(dx, dy);
+}
 
 // easing-функция для плавности
 double MouseThread::easeInOut(double t) {

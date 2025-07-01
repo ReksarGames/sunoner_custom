@@ -68,7 +68,7 @@ private:
 
     // Флаг выбора логики
     bool use_smoothing = { false };
-    bool use_kalman{ false };
+    bool use_kalman = { true };
 
     // Для «ветра»
     bool   wind_mouse_enabled = true;
@@ -119,12 +119,17 @@ private:
     double      smoothingTargetX = 0, smoothingTargetY = 0;
     double      smoothingDurationMs = 0;
     std::chrono::steady_clock::time_point smoothingStartTime{};
+
+    //Kalma
     void moveMouseWithSmoothingKalma(double smoothX, double smoothY);
 
-    double last_dx{ 0.0 };
-    double last_dy{ 0.0 };
-    double last_kX{ 0.0 };
-    double last_kY{ 0.0 };
+    //double last_dx{ 0.0 };
+    //double last_dy{ 0.0 };
+    //double last_kX{ 0.0 };
+    //double last_kY{ 0.0 };
+
+    double kalman_speed_multiplier_x{ 1.0 };
+    double kalman_speed_multiplier_y{ 1.0 };
 public:
     std::mutex input_method_mutex;
 
@@ -197,11 +202,30 @@ public:
     void setMakcuConnection(MakcuConnection* m);
     void setHidConnectionV2(HidConnectionV2* a);
 
+    // Smooth
     void setSmoothnessValue(int value) { smoothness = value; }
     int getSmoothnessValue() const { return smoothness; }
+
+    // Kalma
     void moveMouseWithKalmanSmoothing(double targetX, double targetY);
     void setKalmanParams(double processNoise, double measurementNoise);
+    void setKalmanSpeedMultiplierX(double m) {
+        std::lock_guard<std::mutex> lg(input_method_mutex);
+        kalman_speed_multiplier_x = std::max(0.0, m);
+    }
+    double getKalmanSpeedMultiplierX() const {
+        return kalman_speed_multiplier_x;
+    }
 
+    void setKalmanSpeedMultiplierY(double m) {
+        std::lock_guard<std::mutex> lg(input_method_mutex);
+        kalman_speed_multiplier_y = std::max(0.0, m);
+    }
+    double getKalmanSpeedMultiplierY() const {
+        return kalman_speed_multiplier_y;
+    }
+
+    // Target
     void setTargetDetected(bool d) {
         target_detected.store(d);
     }

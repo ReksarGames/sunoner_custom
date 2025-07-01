@@ -195,7 +195,7 @@ void draw_mouse()
     ImGui::SliderInt("FOV X", &config.fovX, 10, 120);
     ImGui::SliderInt("FOV Y", &config.fovY, 10, 120);
 
-    ImGui::SliderInt("Smoothness", &config.smoothness, 1, 200, "%d");
+    ImGui::SliderInt("Smoothness", &config.smoothness, 1, 20, "%d");
     if (ImGui::Checkbox("Enable Smooth Movement", &config.use_smoothing))
     {
         config.saveConfig();
@@ -214,8 +214,11 @@ void draw_mouse()
     if (config.use_kalman)
     {
         bool changed = false;
-        changed |= ImGui::SliderFloat("Kalman Process Noise", &config.kalman_process_noise, 0.0001f, 1.0f, "%.4f");
-        changed |= ImGui::SliderFloat("Kalman Measurement Noise", &config.kalman_measurement_noise, 0.0001f, 1.0f, "%.4f");
+        changed |= ImGui::SliderFloat("Kalman Process Noise", &config.kalman_process_noise, 0.10f, 1.0f, "%.4f");
+        changed |= ImGui::SliderFloat("Kalman Measurement Noise", &config.kalman_measurement_noise, 0.50f, 1.0f, "%.4f");
+        changed |= ImGui::SliderFloat("Kalman Speed Multiplier X", &config.kalman_speed_multiplier_x, 0.1f, 5.0f, "%.2f");
+        changed |= ImGui::SliderFloat("Kalman Speed Multiplier Y", &config.kalman_speed_multiplier_y, 0.1f, 5.0f, "%.2f");
+
         if (changed)
         {
             config.saveConfig();
@@ -224,6 +227,10 @@ void draw_mouse()
                 config.kalman_process_noise,
                 config.kalman_measurement_noise
             );
+            globalMouseThread->setKalmanSpeedMultiplierX(
+                config.kalman_speed_multiplier_x);
+            globalMouseThread->setKalmanSpeedMultiplierY(
+                config.kalman_speed_multiplier_y);
         }
     }
 
