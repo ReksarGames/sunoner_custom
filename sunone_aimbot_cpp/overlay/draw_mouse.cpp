@@ -131,18 +131,21 @@ static void draw_smoothing_kalman_demo()
     ImDrawList* dl = ImGui::GetWindowDrawList();
     dl->AddRectFilled(p0, p1, IM_COL32(30, 30, 30, 255));
 
+    // Время и dt
     static double last_t = ImGui::GetTime();
     double now = ImGui::GetTime();
     double dt = now - last_t;
     last_t = now;
 
+    // Raw-цель по окружности
     static double angle = 0.0;
-    angle += dt * 1.0;             
+    angle += dt * 1.0;
     if (angle > 2 * 3.14159265358979323846) angle -= 2 * 3.14159265358979323846;
     double rad = canvas_sz.x * 0.4;
     double rawX = center.x + cos(angle) * rad;
     double rawY = center.y + sin(angle) * rad;
 
+    // Калман-фильтр
     static DemoKalman1D kfX{ config.kalman_process_noise, config.kalman_measurement_noise },
         kfY{ config.kalman_process_noise, config.kalman_measurement_noise };
     static float lastQ = config.kalman_process_noise,
@@ -153,41 +156,35 @@ static void draw_smoothing_kalman_demo()
         lastQ = config.kalman_process_noise;
         lastR = config.kalman_measurement_noise;
     }
-
     double kalX = kfX.update(rawX, dt);
     double kalY = kfY.update(rawY, dt);
 
-    static double easeStartX = center.x, easeStartY = center.y;
-    static double easeTargetX = kalX, easeTargetY = kalY;
-    static double easeTime = 0.0;
-    const double easeDur = 0.5; 
-
-    if (hypot(kalX - easeTargetX, kalY - easeTargetY) > 5.0) {
-        easeStartX = center.x;
-        easeStartY = center.y;
-        easeTime = 0.0;
+    // Экспоненциальное сглаживание
+    static double smX = center.x, smY = center.y;
+    int   N = config.smoothness > 0 ? config.smoothness : 1;
+    double alpha = 1.0 / N;
+    // Сброс, если Kalman-координата «прыгает» слишком далеко
+    const double resetThreshold = 5.0;
+    if (hypot(kalX - smX, kalY - smY) > resetThreshold) {
+        smX = kalX;
+        smY = kalY;
+    }
+    else {
+        smX += (kalX - smX) * alpha;
+        smY += (kalY - smY) * alpha;
     }
 
-    easeTargetX = kalX;
-    easeTargetY = kalY;
-    easeTime = std::min(easeTime + dt, easeDur);
-    double t = easeTime / easeDur;
-    double p = -0.5 * (cos(3.14159265358979323846 * t) - 1.0);
-    double smX = easeStartX + (easeTargetX - easeStartX) * p;
-    double smY = easeStartY + (easeTargetY - easeStartY) * p;
-    if (t >= 1.0) {
-        easeStartX = smX;
-        easeStartY = smY;
-    }
-
+    // Рисуем точки: белая = raw, красная = kalman, зелёная = smoothed
     dl->AddCircleFilled({ (float)rawX, (float)rawY }, 4.0f, IM_COL32(255, 255, 255, 200));
     dl->AddCircleFilled({ (float)kalX, (float)kalY }, 4.0f, IM_COL32(255, 100, 100, 200));
     dl->AddCircleFilled({ (float)smX,  (float)smY }, 4.0f, IM_COL32(100, 255, 100, 200));
 
+    // Легенда
     dl->AddText({ p0.x + 5, p0.y + 5 },
         IM_COL32(200, 200, 200, 255),
-        "W=Raw  R=Kalman  G=Easing");
+        "W=Raw  R=Kalman  G=Smoothed");
 }
+
 
 void draw_mouse()
 {
@@ -195,7 +192,7 @@ void draw_mouse()
     ImGui::SliderInt("FOV X", &config.fovX, 10, 120);
     ImGui::SliderInt("FOV Y", &config.fovY, 10, 120);
 
-    ImGui::SliderInt("Smoothness", &config.smoothness, 1, 20, "%d");
+    ImGui::SliderInt("Smoothness", &config.smoothness, 1, 200, "%d");
     if (ImGui::Checkbox("Enable Smooth Movement", &config.use_smoothing))
     {
         config.saveConfig();

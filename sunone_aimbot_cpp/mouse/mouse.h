@@ -120,13 +120,10 @@ private:
     double      smoothingDurationMs = 0;
     std::chrono::steady_clock::time_point smoothingStartTime{};
 
-    //Kalma
-    void moveMouseWithSmoothingKalma(double smoothX, double smoothY);
-
-    //double last_dx{ 0.0 };
-    //double last_dy{ 0.0 };
-    //double last_kX{ 0.0 };
-    //double last_kY{ 0.0 };
+    double last_dx{ 0.0 };
+    double last_dy{ 0.0 };
+    double last_kX{ 0.0 };
+    double last_kY{ 0.0 };
 
     double kalman_speed_multiplier_x{ 1.0 };
     double kalman_speed_multiplier_y{ 1.0 };
@@ -206,8 +203,11 @@ public:
     void setSmoothnessValue(int value) { smoothness = value; }
     int getSmoothnessValue() const { return smoothness; }
 
+    // Kalma + smooth
+    void moveMouseWithKalmanAndSmoothing(double targetX, double targetY);
+
     // Kalma
-    void moveMouseWithKalmanSmoothing(double targetX, double targetY);
+    void moveMouseWithKalman(double targetX, double targetY);
     void setKalmanParams(double processNoise, double measurementNoise);
     void setKalmanSpeedMultiplierX(double m) {
         std::lock_guard<std::mutex> lg(input_method_mutex);
