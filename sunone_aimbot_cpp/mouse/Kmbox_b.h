@@ -1,4 +1,5 @@
-﻿#ifndef KMBOXCONNECTION_H
+﻿/*  KmboxConnection.h  */
+#ifndef KMBOXCONNECTION_H
 #define KMBOXCONNECTION_H
 
 #define WIN32_LEAN_AND_MEAN
@@ -44,7 +45,7 @@ private:
     void processIncomingLine(const std::string& line);
 
 private:
-    serial::Serial serial_;
+    serial::Serial    serial_;
     std::atomic<bool> is_open_;
     std::atomic<bool> listening_;
     std::thread       listening_thread_;
