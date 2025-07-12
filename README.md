@@ -14,24 +14,12 @@
 
 [![C++](https://img.shields.io/badge/C%2B%2B-17-blue)](https://github.com/SunOner/sunone_aimbot_cpp)
 [![License MIT](https://badgen.net/github/license/SunOner/sunone_aimbot_cpp)](https://github.com/SunOner/sunone_aimbot_cpp/blob/main/LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/SunOner/sunone_aimbot_cpp?color=ffb500)](https://github.com/SunOner/sunone_aimbot_cpp)
-[![Discord server](https://badgen.net/discord/online-members/sunone)](https://discord.gg/37WVp6sNEh)
-
   <p>
     <a href="https://github.com/SunOner/sunone_aimbot_cpp/releases" target="_blank">
       <img width="75%" src="https://github.com/SunOner/sunone_aimbot/blob/main/media/one.gif">
     </a>
   </p>
 </div>
-
----
-
-# ⚡️ Ready-to-Use Builds (Recommended)
-
-**You do NOT need to compile anything if you just want to use the aimbot!**
-Precompiled `.exe` builds are provided for both CUDA (NVIDIA only) and DirectML (all GPUs).
-
----
 
 ### 🟢 DirectML (DML) Build — Universal (All GPUs)
 
@@ -312,14 +300,6 @@ sunone_aimbot_cpp/
   ```
 * To convert `.onnx` to `.engine` for TensorRT, use the overlay export tab (open overlay with HOME).
 
----
-
-## 🗂️ Old Releases
-
-* [Legacy and old versions](https://disk.yandex.ru/d/m0jbkiLEFvnZKg)
-
----
-
 ## 📋 Configuration
 
 * See all configuration options and documentation here:
@@ -349,13 +329,3 @@ sunone_aimbot_cpp/
 ### ImGui
 
 * **License:** [MIT License](https://github.com/ocornut/imgui/blob/master/LICENSE)
-
----
-## ❤️ Support the Project & Get Better AI Models
-
-This project is actively developed thanks to the people who support it on [Boosty](https://boosty.to/sunone) and [Patreon](https://www.patreon.com/c/sunone).  
-**By supporting the project, you get access to improved and better-trained AI models!**
-
----
-
-**Need help or want to contribute? Join our [Discord server](https://discord.gg/37WVp6sNEh) or open an issue on GitHub!**
