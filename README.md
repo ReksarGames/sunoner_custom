@@ -11,6 +11,7 @@
 5. **Производительность:** Оптимизированы некоторые процессы, что позволило увеличить производительность на поддерживаемых устройствах.
 6. **Приведение кода в порядок:** Применены принципы SOLID для улучшения структуры и поддерживаемости кода. 
 
+
 [![C++](https://img.shields.io/badge/C%2B%2B-17-blue)](https://github.com/SunOner/sunone_aimbot_cpp)
 [![License MIT](https://badgen.net/github/license/SunOner/sunone_aimbot_cpp)](https://github.com/SunOner/sunone_aimbot_cpp/blob/main/LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/SunOner/sunone_aimbot_cpp?color=ffb500)](https://github.com/SunOner/sunone_aimbot_cpp)
