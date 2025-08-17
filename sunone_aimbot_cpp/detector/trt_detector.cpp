@@ -1,4 +1,4 @@
-﻿#ifdef USE_CUDA
+#ifdef USE_CUDA
 #define WIN32_LEAN_AND_MEAN
 #define _WINSOCKAPI_
 #include <winsock2.h>
@@ -21,9 +21,6 @@
 #include "sunone_aimbot_cpp.h"
 #include "other_tools.h"
 #include "postProcess.h"
-
-#include "fused_preprocess.h"
-#include <opencv2/core/cuda_stream_accessor.hpp>
 
 extern std::atomic<bool> detectionPaused;
 int model_quant;
@@ -80,7 +77,6 @@ void TrtDetector::captureCudaGraph()
 {
     if (!useCudaGraph || cudaGraphCaptured) return;
 
-    // На всякий случай — убедимся, что предыдущие работы завершены
     cudaStreamSynchronize(stream);
 
     cudaError_t st = cudaStreamBeginCapture(stream, cudaStreamCaptureModeGlobal);
@@ -90,25 +86,17 @@ void TrtDetector::captureCudaGraph()
         return;
     }
 
-    // 1) Инференс
     context->enqueueV3(stream);
+    cudaStreamSynchronize(stream);
 
-    // 2) Асинхронные копии всех выходов в pinned host
     for (const auto& name : outputNames)
-    {
-        auto itD = outputBindings.find(name);
-        auto itH = pinnedOutputBuffers.find(name);
-        if (itD == outputBindings.end() || itH == pinnedOutputBuffers.end()) continue;
+        if (pinnedOutputBuffers.count(name))
+            cudaMemcpyAsync(pinnedOutputBuffers[name],
+                outputBindings[name],
+                outputSizes[name],
+                cudaMemcpyDeviceToHost,
+                stream);
 
-        cudaMemcpyAsync(
-            itH->second,
-            itD->second,
-            outputSizes[name],
-            cudaMemcpyDeviceToHost,
-            stream);
-    }
-
-    // Завершаем захват
     st = cudaStreamEndCapture(stream, &cudaGraph);
     if (st != cudaSuccess) {
         std::cerr << "[Detector] EndCapture failed: "
@@ -179,78 +167,58 @@ void TrtDetector::getOutputNames()
 
 void TrtDetector::getBindings()
 {
-    // Освобождаем старые буферы
     for (auto& binding : inputBindings)
+    {
         if (binding.second) cudaFree(binding.second);
+    }
     inputBindings.clear();
 
     for (auto& binding : outputBindings)
+    {
         if (binding.second) cudaFree(binding.second);
+    }
     outputBindings.clear();
 
-    // Освобождаем pinned host буферы под выходы (если были)
-    for (auto& kv : pinnedOutputBuffers)
-        if (kv.second) cudaFreeHost(kv.second);
-    pinnedOutputBuffers.clear();
-
-    // Входы — как и раньше: device память
     for (const auto& name : inputNames)
     {
         size_t size = inputSizes[name];
-        if (size == 0) continue;
+        if (size > 0)
+        {
+            void* ptr = nullptr;
 
-        void* dptr = nullptr;
-        cudaError_t err = cudaMalloc(&dptr, size);
-        if (err == cudaSuccess)
-        {
-            inputBindings[name] = dptr;
-            if (config.verbose)
-                std::cout << "[Detector] Allocated " << size
-                << " bytes for input " << name << std::endl;
-        }
-        else
-        {
-            std::cerr << "[Detector] Failed to allocate input memory for '"
-                << name << "': " << cudaGetErrorString(err) << std::endl;
+            cudaError_t err = cudaMalloc(&ptr, size);
+            if (err == cudaSuccess)
+            {
+                inputBindings[name] = ptr;
+                if (config.verbose)
+                {
+                    std::cout << "[Detector] Allocated " << size << " bytes for input " << name << std::endl;
+                }
+            }
+            else
+            {
+                std::cerr << "[Detector] Failed to allocate input memory: " << cudaGetErrorString(err) << std::endl;
+            }
         }
     }
 
-    // Выходы — device + pinned host
     for (const auto& name : outputNames)
     {
         size_t size = outputSizes[name];
-        if (size == 0) continue;
-
-        // device
-        void* dptr = nullptr;
-        cudaError_t err = cudaMalloc(&dptr, size);
-        if (err != cudaSuccess)
-        {
-            std::cerr << "[Detector] Failed to allocate DEVICE output '"
-                << name << "': " << cudaGetErrorString(err)
-                << " (" << size << " bytes)" << std::endl;
-            continue;
-        }
-        outputBindings[name] = dptr;
-
-        // pinned host
-        void* hptr = nullptr;
-        err = cudaMallocHost(&hptr, size);
-        if (err != cudaSuccess)
-        {
-            std::cerr << "[Detector] Failed to allocate PINNED HOST for '"
-                << name << "': " << cudaGetErrorString(err)
-                << " (" << size << " bytes)" << std::endl;
-            cudaFree(dptr);
-            outputBindings.erase(name);
-            continue;
-        }
-        pinnedOutputBuffers[name] = hptr;
-
-        if (config.verbose)
-        {
-            std::cout << "[Detector] Allocated " << size << " bytes for output "
-                << name << " (device) and pinned host buffer." << std::endl;
+        if (size > 0) {
+            void* ptr = nullptr;
+            cudaError_t err = cudaMalloc(&ptr, size);
+            if (err == cudaSuccess)
+            {
+                outputBindings[name] = ptr;
+                if (config.verbose)
+                {
+                    std::cout << "[Detector] Allocated " << size << " bytes for output " << name << std::endl;
+                }
+            } else
+            {
+                std::cerr << "[Detector] Failed to allocate output memory: " << cudaGetErrorString(err) << std::endl;
+            }
         }
     }
 }
@@ -259,7 +227,6 @@ void TrtDetector::initialize(const std::string& modelFile)
 {
     runtime.reset(nvinfer1::createInferRuntime(gLogger));
     loadEngine(modelFile);
-
     if (!engine)
     {
         std::cerr << "[Detector] Engine loading failed" << std::endl;
@@ -275,40 +242,59 @@ void TrtDetector::initialize(const std::string& modelFile)
 
     getInputNames();
     getOutputNames();
-
     if (inputNames.empty())
     {
         std::cerr << "[Detector] No input tensors found" << std::endl;
         return;
     }
-
     inputName = inputNames[0];
 
-    context->setInputShape(inputName.c_str(), nvinfer1::Dims4{ 1, 3, 640, 640 });
-    if (!context->allInputDimensionsSpecified())
+    nvinfer1::Dims inputDims = context->getTensorShape(inputName.c_str());
+    bool isStatic = true;
+    for (int i = 0; i < inputDims.nbDims; ++i)
+        if (inputDims.d[i] <= 0) isStatic = false;
+    
+    if (isStatic != config.fixed_input_size)
     {
-        std::cerr << "[Detector] Failed to set input dimensions" << std::endl;
-        return;
+        config.fixed_input_size = isStatic;
+        config.saveConfig();
+        detector_model_changed.store(true);
+        std::cout << "[Detector] Automatically set fixed_input_size = " << (isStatic ? "true" : "false") << std::endl;
     }
+
+    const int target = config.detection_resolution;
+    if (!isStatic)
+    {
+        nvinfer1::Dims4 newShape{ 1, 3, target, target };
+        context->setInputShape(inputName.c_str(), newShape);
+        if (!context->allInputDimensionsSpecified())
+        {
+            std::cerr << "[Detector] Failed to set input dimensions" << std::endl;
+            return;
+        }
+        inputDims = context->getTensorShape(inputName.c_str());
+    }
+
+    inputSizes.clear();
+    outputSizes.clear();
+    outputShapes.clear();
+    outputTypes.clear();
 
     for (const auto& inName : inputNames)
     {
-        nvinfer1::Dims dims = context->getTensorShape(inName.c_str());
-        nvinfer1::DataType dtype = engine->getTensorDataType(inName.c_str());
-        inputSizes[inName] = getSizeByDim(dims) * getElementSize(dtype);
+        nvinfer1::Dims d = context->getTensorShape(inName.c_str());
+        nvinfer1::DataType dt = engine->getTensorDataType(inName.c_str());
+        inputSizes[inName] = getSizeByDim(d) * getElementSize(dt);
     }
     for (const auto& outName : outputNames)
     {
-        nvinfer1::Dims dims = context->getTensorShape(outName.c_str());
-        nvinfer1::DataType dtype = engine->getTensorDataType(outName.c_str());
-        outputSizes[outName] = getSizeByDim(dims) * getElementSize(dtype);
-
-        std::vector<int64_t> shape;
-        for (int j = 0; j < dims.nbDims; j++)
-        {
-            shape.push_back(dims.d[j]);
-        }
-        outputShapes[outName] = shape;
+        nvinfer1::Dims d = context->getTensorShape(outName.c_str());
+        nvinfer1::DataType dt = engine->getTensorDataType(outName.c_str());
+        outputSizes[outName] = getSizeByDim(d) * getElementSize(dt);
+        std::vector<int64_t> shape(d.nbDims);
+        for (int j = 0; j < d.nbDims; ++j) shape[j] = d.d[j];
+        outputShapes[outName] = std::move(shape);
+        outputTypes[outName] = dt;
     }
 
     getBindings();
@@ -317,36 +303,31 @@ void TrtDetector::initialize(const std::string& modelFile)
     {
         const std::string& mainOut = outputNames[0];
         nvinfer1::Dims outDims = context->getTensorShape(mainOut.c_str());
-
-        if (config.postprocess == "yolo10")
-        {
-            numClasses = 11;
-        }
-        else
-        {
-            numClasses = outDims.d[1] - 4;
-        }
+        numClasses = (config.postprocess == "yolo10") ? 11 : (outDims.d[1] - 4);
     }
 
-    img_scale = static_cast<float>(config.detection_resolution) / 640;
-    nvinfer1::Dims dims = context->getTensorShape(inputName.c_str());
-    int c = dims.d[1];
-    int h = dims.d[2];
-    int w = dims.d[3];
+    int c = inputDims.d[1];
+    int h = inputDims.d[2];
+    int w = inputDims.d[3];
+
+    img_scale = static_cast<float>(config.detection_resolution) / w;
+
     resizedBuffer.create(h, w, CV_8UC3);
     floatBuffer.create(h, w, CV_32FC3);
+    channelBuffers.clear();
     channelBuffers.resize(c);
     for (int i = 0; i < c; ++i)
-    {
         channelBuffers[i].create(h, w, CV_32F);
-    }
-    for (const auto& name : inputNames)
+
+    for (const auto& n : inputNames)
+        context->setTensorAddress(n.c_str(), inputBindings[n]);
+    for (const auto& n : outputNames)
+        context->setTensorAddress(n.c_str(), outputBindings[n]);
+
+    if (config.verbose)
     {
-        context->setTensorAddress(name.c_str(), inputBindings[name]);
-    }
-    for (const auto& name : outputNames)
-    {
-        context->setTensorAddress(name.c_str(), outputBindings[name]);
+        std::cout << "[Detector] Initialized. ModelStatic=" << std::boolalpha << isStatic
+            << ", NetInput=" << h << "x" << w << " (scale=" << img_scale << ")" << std::endl;
     }
 }
 
@@ -453,12 +434,12 @@ void TrtDetector::inferenceThread()
                 std::unique_lock<std::mutex> lock(inferenceMutex);
                 context.reset();
                 engine.reset();
-                for (auto& b : inputBindings)  if (b.second) cudaFree(b.second);
+                for (auto& binding : inputBindings)
+                    if (binding.second) cudaFree(binding.second);
                 inputBindings.clear();
-                for (auto& b : outputBindings) if (b.second) cudaFree(b.second);
+                for (auto& binding : outputBindings)
+                    if (binding.second) cudaFree(binding.second);
                 outputBindings.clear();
-                for (auto& kv : pinnedOutputBuffers) if (kv.second) cudaFreeHost(kv.second);
-                pinnedOutputBuffers.clear();
             }
             initialize("models/" + config.ai_model);
             detection_resolution_changed.store(true);
@@ -502,82 +483,83 @@ void TrtDetector::inferenceThread()
         {
             try
             {
-                // PRE
                 auto t0 = std::chrono::steady_clock::now();
                 preProcess(frame);
                 auto t1 = std::chrono::steady_clock::now();
 
-                // INFER
                 context->enqueueV3(stream);
+                cudaStreamSynchronize(stream);
 
-                // Событие окончания инференса (до копий)
-                cudaEvent_t inferDone;
-                cudaEventCreateWithFlags(&inferDone, cudaEventDisableTiming);
-                cudaEventRecord(inferDone, stream);
-
-                // D2H копии (асинхронно) — в pinned буферы
-                auto t_copy_start = std::chrono::steady_clock::now();
-                for (const auto& name : outputNames)
-                {
-                    auto itD = outputBindings.find(name);
-                    auto itH = pinnedOutputBuffers.find(name);
-                    if (itD == outputBindings.end() || itH == pinnedOutputBuffers.end()) continue;
-
-                    size_t size = outputSizes[name];
-                    cudaMemcpyAsync(
-                        itH->second,             // host pinned
-                        itD->second,             // device
-                        size,
-                        cudaMemcpyDeviceToHost,
-                        stream);
-                }
-
-                // Событие окончания копий
-                cudaEvent_t copiesDone;
-                cudaEventCreateWithFlags(&copiesDone, cudaEventDisableTiming);
-                cudaEventRecord(copiesDone, stream);
-
-                // Ждём завершения инференса (метрика inferenceTime без учета копий)
-                cudaEventSynchronize(inferDone);
                 auto t2 = std::chrono::steady_clock::now();
-                lastInferenceTime = t2 - t1;
-                cudaEventDestroy(inferDone);
 
-                // Ждём завершения копий
-                cudaEventSynchronize(copiesDone);
-                auto t_copy_end = std::chrono::steady_clock::now();
-                lastCopyTime = t_copy_end - t_copy_start;
-                cudaEventDestroy(copiesDone);
-
-                // POST — читаем из pinnedOutputBuffers
                 for (const auto& name : outputNames)
                 {
                     size_t size = outputSizes[name];
                     nvinfer1::DataType dtype = outputTypes[name];
 
-                    auto t_post_start = std::chrono::steady_clock::now();
+                    auto t_copy_start = std::chrono::steady_clock::now();
 
                     if (dtype == nvinfer1::DataType::kHALF)
                     {
-                        // конверт kHALF -> float на CPU (просто, можно ускорить позже)
-                        size_t num = size / sizeof(__half);
-                        const __half* hptr = static_cast<const __half*>(pinnedOutputBuffers[name]);
-                        std::vector<float> tmp(num);
-                        for (size_t i = 0; i < num; ++i) tmp[i] = __half2float(hptr[i]);
+                        size_t numElements = size / sizeof(__half);
+                        std::vector<__half>& outputDataHalf = outputDataBuffersHalf[name];
+                        outputDataHalf.resize(numElements);
 
-                        postProcess(tmp.data(), name, &lastNmsTime);
+                        cudaMemcpy(
+                            outputDataHalf.data(),
+                            outputBindings[name],
+                            size,
+                            cudaMemcpyDeviceToHost
+                        );
+
+                        std::vector<float> outputDataFloat(outputDataHalf.size());
+                        for (size_t i = 0; i < outputDataHalf.size(); ++i) {
+                            outputDataFloat[i] = __half2float(outputDataHalf[i]);
+                        }
+
+                        auto t_copy_end = std::chrono::steady_clock::now();
+                        lastCopyTime = t_copy_end - t_copy_start;
+
+                        auto t_post_start = std::chrono::steady_clock::now();
+
+                        postProcess(
+                            outputDataFloat.data(),
+                            name,
+                            &lastNmsTime
+                        );
+
+                        auto t_post_end = std::chrono::steady_clock::now();
+                        lastPostprocessTime = t_post_end - t_post_start;
                     }
-                    else // kFLOAT
+                    else if (dtype == nvinfer1::DataType::kFLOAT)
                     {
-                        const float* fptr = static_cast<const float*>(pinnedOutputBuffers[name]);
-                        postProcess(fptr, name, &lastNmsTime);
+                        std::vector<float>& outputData = outputDataBuffers[name];
+                        outputData.resize(size / sizeof(float));
+
+                        cudaMemcpy(
+                            outputData.data(),
+                            outputBindings[name],
+                            size,
+                            cudaMemcpyDeviceToHost
+                        );
+
+                        auto t_copy_end = std::chrono::steady_clock::now();
+                        lastCopyTime = t_copy_end - t_copy_start;
+
+                        auto t_post_start = std::chrono::steady_clock::now();
+
+                        postProcess(
+                            outputData.data(),
+                            name,
+                            &lastNmsTime
+                        );
+
+                        auto t_post_end = std::chrono::steady_clock::now();
+                        lastPostprocessTime = t_post_end - t_post_start;
                     }
-
-                    auto t_post_end = std::chrono::steady_clock::now();
-                    lastPostprocessTime = t_post_end - t_post_start;
                 }
-
                 lastPreprocessTime = t1 - t0;
+                lastInferenceTime = t2 - t1;
             }
             catch (const std::exception& e)
             {
@@ -678,36 +660,6 @@ std::vector<std::vector<Detection>> TrtDetector::detectBatch(const std::vector<c
     return batchDetections;
 }
 
-//void TrtDetector::preProcess(const cv::Mat& frame)
-//{
-//    if (frame.empty()) return;
-//
-//    void* inputBuffer = inputBindings[inputName];
-//    if (!inputBuffer) return;
-//
-//    nvinfer1::Dims dims = context->getTensorShape(inputName.c_str());
-//    int c = dims.d[1];
-//    int h = dims.d[2];
-//    int w = dims.d[3];
-//
-//    cv::cuda::GpuMat gpuFrame, gpuResized, gpuFloat;
-//    gpuFrame.upload(frame);
-//
-//    if (frame.channels() == 4)
-//        cv::cuda::cvtColor(gpuFrame, gpuFrame, cv::COLOR_BGRA2BGR);
-//    else if (frame.channels() == 1)
-//        cv::cuda::cvtColor(gpuFrame, gpuFrame, cv::COLOR_GRAY2BGR);
-//
-//    cv::cuda::resize(gpuFrame, gpuResized, cv::Size(w, h));
-//    gpuResized.convertTo(gpuFloat, CV_32FC3, 1.0 / 255.0);
-//
-//    std::vector<cv::cuda::GpuMat> gpuChannels;
-//    cv::cuda::split(gpuFloat, gpuChannels);
-//
-//    for (int i = 0; i < c; ++i)
-//        cudaMemcpy((float*)inputBuffer + i * h * w, gpuChannels[i].ptr<float>(), h * w * sizeof(float), cudaMemcpyDeviceToDevice);
-//}
-
 void TrtDetector::preProcess(const cv::Mat& frame)
 {
     if (frame.empty()) return;
@@ -715,64 +667,28 @@ void TrtDetector::preProcess(const cv::Mat& frame)
     void* inputBuffer = inputBindings[inputName];
     if (!inputBuffer) return;
 
-    // Запрашиваем форму входа у контекста
     nvinfer1::Dims dims = context->getTensorShape(inputName.c_str());
-    const int c = dims.d[1];
-    const int h = dims.d[2];
-    const int w = dims.d[3];
-    (void)c; // на случай, если компилятор ворчит
+    int c = dims.d[1];
+    int h = dims.d[2];
+    int w = dims.d[3];
 
-    // Тот же CUDA stream, что и у TensorRT
-    cv::cuda::Stream cvStream = cv::cuda::StreamAccessor::wrapStream(stream);
-
-    // Готовим RGB8 на GPU
-    cv::cuda::GpuMat gpuRGB;
+    cv::cuda::GpuMat gpuFrame, gpuResized, gpuFloat;
+    gpuFrame.upload(frame);
 
     if (frame.channels() == 4)
-    {
-        cv::cuda::GpuMat gpuBGRA(frame.size(), CV_8UC4);
-        gpuBGRA.upload(frame, cvStream);
-        cv::cuda::cvtColor(gpuBGRA, gpuRGB, cv::COLOR_BGRA2RGB, 0, cvStream);
-    }
-    else if (frame.channels() == 3)
-    {
-        cv::cuda::GpuMat gpuBGR(frame.size(), CV_8UC3);
-        gpuBGR.upload(frame, cvStream);
-        cv::cuda::cvtColor(gpuBGR, gpuRGB, cv::COLOR_BGR2RGB, 0, cvStream);
-    }
+        cv::cuda::cvtColor(gpuFrame, gpuFrame, cv::COLOR_BGRA2BGR);
     else if (frame.channels() == 1)
-    {
-        cv::cuda::GpuMat gpuGray(frame.size(), CV_8UC1);
-        gpuGray.upload(frame, cvStream);
-        cv::cuda::cvtColor(gpuGray, gpuRGB, cv::COLOR_GRAY2RGB, 0, cvStream);
-    }
-    else
-    {
-        // Неизвестное число каналов
-        return;
-    }
+        cv::cuda::cvtColor(gpuFrame, gpuFrame, cv::COLOR_GRAY2BGR);
 
-    // Шаг в "пикселях" для uchar3
-    const int in_pitch_pixels = static_cast<int>(gpuRGB.step) / static_cast<int>(sizeof(uchar3));
+    cv::cuda::resize(gpuFrame, gpuResized, cv::Size(w, h));
+    gpuResized.convertTo(gpuFloat, CV_32FC3, 1.0 / 255.0);
 
-    // Нормализация — по умолчанию просто /255
-    float mean[3] = { 0.f, 0.f, 0.f };
-    float std_[3] = { 1.f, 1.f, 1.f };
-    // Если у тебя есть значения mean/std в конфиге — подставь здесь
-    // mean[0] = config.mean[0]; ...  std_[0] = config.std[0]; ...
+    std::vector<cv::cuda::GpuMat> gpuChannels;
+    cv::cuda::split(gpuFloat, gpuChannels);
 
-    // Фьюзим: letterbox/resize + to float + normalize + CHW
-    launch_fused_preprocess(
-        reinterpret_cast<const uchar3*>(gpuRGB.ptr<uchar3>()),
-        gpuRGB.cols, gpuRGB.rows, in_pitch_pixels,
-        static_cast<float*>(inputBuffer),  // CHW float на device
-        w, h,
-        mean, std_,
-        stream);
-
-    // Больше никаких resize/convertTo/split/memcpy не нужно
+    for (int i = 0; i < c; ++i)
+        cudaMemcpy((float*)inputBuffer + i * h * w, gpuChannels[i].ptr<float>(), h * w * sizeof(float), cudaMemcpyDeviceToDevice);
 }
-
 
 void TrtDetector::postProcess(const float* output, const std::string& outputName, std::chrono::duration<double, std::milli>* nmsTime)
 {

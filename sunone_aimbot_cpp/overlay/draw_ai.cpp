@@ -1,4 +1,4 @@
-#define WIN32_LEAN_AND_MEAN
+﻿#define WIN32_LEAN_AND_MEAN
 #define _WINSOCKAPI_
 #include <winsock2.h>
 #include <Windows.h>
@@ -85,10 +85,12 @@ void draw_ai()
     ImGui::Separator();
 
 #ifdef USE_CUDA
-    std::vector<std::string> backendOptions = { "TRT", "DML" };
-    std::vector<const char*> backendItems = { "TensorRT (CUDA)", "DirectML (CPU/GPU)" };
+    std::vector<std::string> backendOptions = { "TRT", "DML", "COLOR" };
+    std::vector<const char*> backendItems = { "TensorRT (CUDA)", "DirectML (CPU/GPU)" , "Color Detection (HSV)" };
 
-    int currentBackendIndex = config.backend == "DML" ? 1 : 0;
+    int currentBackendIndex = 0;
+    if (config.backend == "DML") currentBackendIndex = 1;
+    else if (config.backend == "COLOR") currentBackendIndex = 2;
 
     if (ImGui::Combo("Backend", &currentBackendIndex, backendItems.data(), static_cast<int>(backendItems.size())))
     {
@@ -160,5 +162,44 @@ void draw_ai()
         prev_backend = config.backend;
         detector_model_changed.store(true);
         config.saveConfig();
+    }
+
+    ImGui::Separator();
+    ImGui::Text("Color Detection (HSV)");
+    ImGui::Separator();
+
+    // выбор целевого цвета
+    std::vector<const char*> colorItems;
+    for (const auto& cr : config.color_ranges) {
+        colorItems.push_back(cr.name.c_str());
+    }
+
+    static int currentColorIndex = 0;
+    for (size_t i = 0; i < config.color_ranges.size(); ++i) {
+        if (config.color_ranges[i].name == config.color_target) {
+            currentColorIndex = static_cast<int>(i);
+            break;
+        }
+    }
+
+    if (!colorItems.empty()) {
+        if (ImGui::Combo("Target Color", &currentColorIndex, colorItems.data(), (int)colorItems.size())) {
+            config.color_target = config.color_ranges[currentColorIndex].name;
+            config.saveConfig();
+            detector_model_changed.store(true);
+        }
+    }
+
+    if (ImGui::SliderInt("Erode Iterations", &config.color_erode_iter, 0, 5)) {
+        config.saveConfig();
+        detector_model_changed.store(true);
+    }
+    if (ImGui::SliderInt("Dilate Iterations", &config.color_dilate_iter, 0, 5)) {
+        config.saveConfig();
+        detector_model_changed.store(true);
+    }
+    if (ImGui::SliderInt("Min Area", &config.color_min_area, 10, 1000)) {
+        config.saveConfig();
+        detector_model_changed.store(true);
     }
 }

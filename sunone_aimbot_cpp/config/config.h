@@ -147,6 +147,19 @@ public:
     int screenshot_delay;
     bool verbose;
 
+    // Color
+    int color_erode_iter;
+    int color_dilate_iter;
+    int color_min_area;
+    std::string color_target;  
+
+    struct ColorRange {
+        std::string name;
+        int h_low, s_low, v_low;
+        int h_high, s_high, v_high;
+    };
+    std::vector<ColorRange> color_ranges;
+
     struct GameProfile
     {
         std::string name;

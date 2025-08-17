@@ -1,4 +1,4 @@
-#define WIN32_LEAN_AND_MEAN
+﻿#define WIN32_LEAN_AND_MEAN
 #define _WINSOCKAPI_
 #include <windows.h>
 #include <iostream>
@@ -188,6 +188,23 @@ bool Config::loadConfig(const std::string& filename)
         class_fire = 9;
         class_third_person = 10;
 
+        // Color defaults
+        color_erode_iter = 1;
+        color_dilate_iter = 2;
+        color_min_area = 50;
+
+        // Заполняем дефолтные диапазоны HSV
+        color_ranges.clear();
+
+        // Yellow
+        ColorRange yellow;
+        yellow.name = "Yellow";
+        yellow.h_low = 30; yellow.s_low = 125; yellow.v_low = 150;
+        yellow.h_high = 30; yellow.s_high = 255; yellow.v_high = 255;
+        color_ranges.push_back(yellow);
+
+        color_target = "Yellow";
+
         // Debug
         show_window = true;
         screenshot_button = splitString("None");
@@ -358,12 +375,56 @@ bool Config::loadConfig(const std::string& filename)
     auto_shoot = get_bool("auto_shoot", false);
     bScope_multiplier = (float)get_double("bScope_multiplier", 1.2);
 
+    // Color detection
+    color_erode_iter = get_long("color_erode_iter", 1);
+    color_dilate_iter = get_long("color_dilate_iter", 2);
+    color_min_area = get_long("color_min_area", 50);
+    color_target = get_string("color_target", "Red1");
+
+    // HSV ranges
+    color_ranges.clear();
+    CSimpleIniA::TNamesDepend colorKeys;
+    ini.GetAllKeys("Colors", colorKeys);
+
+    for (const auto& k : colorKeys) {
+        std::string key = k.pItem; // например "Yellow"
+        std::string val = ini.GetValue("Colors", key.c_str(), "");
+        auto parts = splitString(val, ',');
+        if (parts.size() == 6) {
+            try {
+                ColorRange cr;
+                cr.name = key;
+                cr.h_low = std::stoi(parts[0]);
+                cr.s_low = std::stoi(parts[1]);
+                cr.v_low = std::stoi(parts[2]);
+                cr.h_high = std::stoi(parts[3]);
+                cr.s_high = std::stoi(parts[4]);
+                cr.v_high = std::stoi(parts[5]);
+                color_ranges.push_back(cr);
+            }
+            catch (...) {
+                std::cerr << "[Config] Invalid HSV values for color: " << key << std::endl;
+            }
+        }
+    }
+
     // AI
+    backend = get_string("backend",
 #ifdef USE_CUDA
-    backend = get_string("backend", "TRT");
+        "TRT"
 #else
-    backend = get_string("backend", "DML");
+        "DML"
 #endif
+    );
+
+    // Проверка допустимых значений (TRT / DML / COLOR)
+    if (backend != "TRT" && backend != "DML" && backend != "COLOR") {
+#ifdef USE_CUDA
+        backend = "TRT";
+#else
+        backend = "DML";
+#endif
+    }
 
     dml_device_id = get_long("dml_device_id", 0);
 
@@ -597,6 +658,22 @@ bool Config::saveConfig(const std::string& filename)
         << "class_smoke = " << class_smoke << "\n"
         << "class_fire = " << class_fire << "\n"
         << "class_third_person = " << class_third_person << "\n\n";
+
+    // Color detection
+    file << "# Color detection\n";
+    file << "color_erode_iter = " << color_erode_iter << "\n";
+    file << "color_dilate_iter = " << color_dilate_iter << "\n";
+    file << "color_min_area = " << color_min_area << "\n";
+    file << "color_target = " << color_target << "\n\n";
+
+    file << "[Colors]\n";
+    for (const auto& cr : color_ranges) {
+        file << cr.name << " = "
+            << cr.h_low << "," << cr.s_low << "," << cr.v_low << ","
+            << cr.h_high << "," << cr.s_high << "," << cr.v_high << "\n";
+    }
+    file << "\n";
+
 
     // Debug
     file << "# Debug\n"

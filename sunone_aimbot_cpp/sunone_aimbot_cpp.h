@@ -14,6 +14,7 @@
 #include "MakcuConnection.h"
 #include "HID/HIDConnection.h"
 #include "HID/HIDConnectionV2.h"
+#include "color_detector.h"
 
 extern Config config;
 #ifdef USE_CUDA
@@ -28,6 +29,7 @@ extern KmboxNetConnection* kmboxNetSerial;
 extern HIDConnection* hid;
 extern MakcuConnection* makcu;
 extern HidConnectionV2* arduinoHid;
+extern ColorDetector* color_detector;
 
 extern std::atomic<bool> input_method_changed;
 extern std::atomic<bool> aiming;

@@ -36,6 +36,9 @@ DirectMLDetector* dml_detector = nullptr;
 MouseThread* globalMouseThread = nullptr;
 Config config;
 
+ColorDetector* color_detector = nullptr;
+std::thread color_detThread;
+
 GhubMouse* gHub = nullptr;
 SerialConnection* arduinoSerial = nullptr;
 KmboxConnection* kmboxSerial = nullptr;
@@ -504,6 +507,14 @@ int main()
             std::cout << "[MAIN] DML detector initialized." << std::endl;
             dml_detThread = std::thread(&DirectMLDetector::dmlInferenceThread, dml_detector);
         }
+        else if (config.backend == "COLOR")
+        {
+            color_detector = new ColorDetector();
+            std::cout << "[Capture] backend=" << config.backend << std::endl;
+            color_detector->initializeFromConfig(config);   
+            std::cout << "[MAIN] Color detector initialized." << std::endl;
+            color_detThread = std::thread(&ColorDetector::inferenceThread, color_detector);
+        }
 #ifdef USE_CUDA
         else
         {
@@ -532,6 +543,15 @@ int main()
             dml_detector->inferenceCV.notify_all();
             dml_detThread.join();
         }
+
+        if (color_detThread.joinable())
+        {
+            color_detector->stop();
+            color_detThread.join();
+            delete color_detector;
+            color_detector = nullptr;
+        }
+
 
 #ifdef USE_CUDA
         trt_detThread.join();

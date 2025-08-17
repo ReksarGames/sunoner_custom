@@ -1,4 +1,4 @@
-#define WIN32_LEAN_AND_MEAN
+﻿#define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
 #include <d3d11.h>
@@ -23,6 +23,8 @@
 #include "winrt_capture.h"
 #include "virtual_camera.h"
 #include "capture_utils.h"
+
+#include "color_detector.h"
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -217,7 +219,13 @@ void captureThread(int CAPTURE_WIDTH, int CAPTURE_HEIGHT)
             {
                 trt_detector.processFrame(screenshotCpu);
             }
-#endif
+#endif  
+            else if (config.backend == "COLOR")
+            {
+                if (color_detector)
+                    color_detector->processFrame(screenshotCpu);
+            }
+
             if (!config.screenshot_button.empty() && config.screenshot_button[0] != "None")
             {
                 bool buttonPressed = isAnyKeyPressed(config.screenshot_button);

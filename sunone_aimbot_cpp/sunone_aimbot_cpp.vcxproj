@@ -20,6 +20,7 @@
     <ClCompile Include="capture\virtual_camera.cpp" />
     <ClCompile Include="capture\winrt_capture.cpp" />
     <ClCompile Include="config\config.cpp" />
+    <ClCompile Include="detector\color_detector.cpp" />
     <ClCompile Include="detector\detection_buffer.cpp" />
     <ClCompile Include="detector\dml_detector.cpp" />
     <ClCompile Include="detector\postProcess.cpp">
@@ -68,6 +69,7 @@
     <ClInclude Include="capture\virtual_camera.h" />
     <ClInclude Include="capture\winrt_capture.h" />
     <ClInclude Include="config\config.h" />
+    <ClInclude Include="detector\color_detector.h" />
     <ClInclude Include="detector\detection_buffer.h" />
     <ClInclude Include="detector\fused_preprocess.h" />
     <ClInclude Include="detector\dml_detector.h" />
