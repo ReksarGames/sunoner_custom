@@ -23,6 +23,7 @@ public:
 
     void processFrame(const cv::Mat& frame);
     void inferenceThread();
+    void setFrame(const cv::Mat& frameBGRorBGRA);
 
     void stop() {
         shouldExit.store(true);
@@ -36,6 +37,7 @@ private:
     void detectColors(const cv::Mat& frame);
     void postProcess(const std::vector<cv::Rect>& boxes);
 
+    // === Управление ===
     std::vector<ColorRange> colorRanges;
     int erodeIter = 1;
     int dilateIter = 2;
@@ -44,4 +46,13 @@ private:
     std::atomic<bool> frameReady{ false };
     cv::Mat currentFrame;
     std::mutex inferenceMutex;
+
+    bool        debug_show_window{ true };
+    bool        debug_show_fps{ true };
+    std::string debug_window_name{ "ColorDetection Debug" };
+    cv::Scalar  debug_bgr{ 0, 255, 0 }; // цвет отрисовки (B, G, R)
+
+    // для расчёта FPS
+    std::chrono::steady_clock::time_point dbg_prev_ts{};
+    double      dbg_fps{ 0.0 };
 };
