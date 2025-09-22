@@ -39,6 +39,9 @@ void ColorDetector::initializeFromConfig(const Config& cfg) {
     erodeIter = cfg.color_erode_iter;
     dilateIter = cfg.color_dilate_iter;
     minArea = cfg.color_min_area;
+    tinyArea = cfg.tinyArea;
+    isOnlyTop = cfg.isOnlyTop;
+    scanError = cfg.scanError;
 }
 
 void ColorDetector::processFrame(const cv::Mat& frame) {

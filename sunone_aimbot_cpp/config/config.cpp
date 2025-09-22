@@ -193,6 +193,9 @@ bool Config::loadConfig(const std::string& filename)
         color_erode_iter = 1;
         color_dilate_iter = 2;
         color_min_area = 50;
+        tinyArea = 2;
+        isOnlyTop = true;
+        scanError = 0.1f;
 
         // Заполняем дефолтные диапазоны HSV
         color_ranges.clear();
@@ -393,7 +396,10 @@ bool Config::loadConfig(const std::string& filename)
     color_erode_iter = get_long("color_erode_iter", 1);
     color_dilate_iter = get_long("color_dilate_iter", 2);
     color_min_area = get_long("color_min_area", 50);
-    color_target = get_string("color_target", "Red1");
+    color_target = get_string("color_target", "yellow");
+    tinyArea = get_long("tinyArea", 2);
+    isOnlyTop = get_bool("isOnlyTop", true);
+    scanError = get_long("scanError", 0.1f);
 
     // HSV ranges
     color_ranges.clear();
@@ -679,7 +685,10 @@ bool Config::saveConfig(const std::string& filename)
     file << "color_erode_iter = " << color_erode_iter << "\n";
     file << "color_dilate_iter = " << color_dilate_iter << "\n";
     file << "color_min_area = " << color_min_area << "\n";
-    file << "color_target = " << color_target << "\n\n";
+    file << "color_target = " << color_target << "\n";
+    file << "tinyArea = " << tinyArea << "\n";
+    file << "isOnlyTop = " << isOnlyTop << "\n";
+    file << "scanError = " << scanError << "\n\n";
 
     file << "[Colors]\n";
     for (const auto& cr : color_ranges) {

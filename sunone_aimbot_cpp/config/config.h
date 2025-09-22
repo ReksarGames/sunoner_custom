@@ -152,6 +152,9 @@ public:
     int color_erode_iter;
     int color_dilate_iter;
     int color_min_area;
+    int tinyArea;
+    bool isOnlyTop;
+    float scanError;
     std::string color_target;  
 
     struct ColorRange {
