@@ -110,8 +110,8 @@ void KmboxConnection::click(int button /*=0*/)
     sendCommand("km.click(" + std::to_string(button) + ')');
 }
 
-void KmboxConnection::press(int /*button*/) { sendCommand("km.left_down()"); }
-void KmboxConnection::release(int /*button*/) { sendCommand("km.left_up()"); }
+void KmboxConnection::press(int /*button*/) { sendCommand("km.left(1)"); }
+void KmboxConnection::release(int /*button*/) { sendCommand("km.left(0)"); }
 
 void KmboxConnection::start_boot()
 {

@@ -227,6 +227,7 @@ void TrtDetector::initialize(const std::string& modelFile)
 {
     runtime.reset(nvinfer1::createInferRuntime(gLogger));
     loadEngine(modelFile);
+
     if (!engine)
     {
         std::cerr << "[Detector] Engine loading failed" << std::endl;
@@ -242,59 +243,40 @@ void TrtDetector::initialize(const std::string& modelFile)
 
     getInputNames();
     getOutputNames();
+
     if (inputNames.empty())
     {
         std::cerr << "[Detector] No input tensors found" << std::endl;
         return;
     }
+
     inputName = inputNames[0];
 
-    nvinfer1::Dims inputDims = context->getTensorShape(inputName.c_str());
-    bool isStatic = true;
-    for (int i = 0; i < inputDims.nbDims; ++i)
-        if (inputDims.d[i] <= 0) isStatic = false;
-    
-    if (isStatic != config.fixed_input_size)
+    context->setInputShape(inputName.c_str(), nvinfer1::Dims4{ 1, 3, 640, 640 });
+    if (!context->allInputDimensionsSpecified())
     {
-        config.fixed_input_size = isStatic;
-        config.saveConfig();
-        detector_model_changed.store(true);
-        std::cout << "[Detector] Automatically set fixed_input_size = " << (isStatic ? "true" : "false") << std::endl;
+        std::cerr << "[Detector] Failed to set input dimensions" << std::endl;
+        return;
     }
-
-    const int target = config.detection_resolution;
-    if (!isStatic)
-    {
-        nvinfer1::Dims4 newShape{ 1, 3, target, target };
-        context->setInputShape(inputName.c_str(), newShape);
-        if (!context->allInputDimensionsSpecified())
-        {
-            std::cerr << "[Detector] Failed to set input dimensions" << std::endl;
-            return;
-        }
-        inputDims = context->getTensorShape(inputName.c_str());
-    }
-
-    inputSizes.clear();
-    outputSizes.clear();
-    outputShapes.clear();
-    outputTypes.clear();
 
     for (const auto& inName : inputNames)
     {
-        nvinfer1::Dims d = context->getTensorShape(inName.c_str());
-        nvinfer1::DataType dt = engine->getTensorDataType(inName.c_str());
-        inputSizes[inName] = getSizeByDim(d) * getElementSize(dt);
+        nvinfer1::Dims dims = context->getTensorShape(inName.c_str());
+        nvinfer1::DataType dtype = engine->getTensorDataType(inName.c_str());
+        inputSizes[inName] = getSizeByDim(dims) * getElementSize(dtype);
     }
     for (const auto& outName : outputNames)
     {
-        nvinfer1::Dims d = context->getTensorShape(outName.c_str());
-        nvinfer1::DataType dt = engine->getTensorDataType(outName.c_str());
-        outputSizes[outName] = getSizeByDim(d) * getElementSize(dt);
-        std::vector<int64_t> shape(d.nbDims);
-        for (int j = 0; j < d.nbDims; ++j) shape[j] = d.d[j];
-        outputShapes[outName] = std::move(shape);
-        outputTypes[outName] = dt;
+        nvinfer1::Dims dims = context->getTensorShape(outName.c_str());
+        nvinfer1::DataType dtype = engine->getTensorDataType(outName.c_str());
+        outputSizes[outName] = getSizeByDim(dims) * getElementSize(dtype);
+
+        std::vector<int64_t> shape;
+        for (int j = 0; j < dims.nbDims; j++)
+        {
+            shape.push_back(dims.d[j]);
+        }
+        outputShapes[outName] = shape;
     }
 
     getBindings();
@@ -303,31 +285,36 @@ void TrtDetector::initialize(const std::string& modelFile)
     {
         const std::string& mainOut = outputNames[0];
         nvinfer1::Dims outDims = context->getTensorShape(mainOut.c_str());
-        numClasses = (config.postprocess == "yolo10") ? 11 : (outDims.d[1] - 4);
+
+        if (config.postprocess == "yolo10")
+        {
+            numClasses = 11;
+        }
+        else
+        {
+            numClasses = outDims.d[1] - 4;
+        }
     }
 
-    int c = inputDims.d[1];
-    int h = inputDims.d[2];
-    int w = inputDims.d[3];
-
-    img_scale = static_cast<float>(config.detection_resolution) / w;
-
+    img_scale = static_cast<float>(config.detection_resolution) / 640;
+    nvinfer1::Dims dims = context->getTensorShape(inputName.c_str());
+    int c = dims.d[1];
+    int h = dims.d[2];
+    int w = dims.d[3];
     resizedBuffer.create(h, w, CV_8UC3);
     floatBuffer.create(h, w, CV_32FC3);
-    channelBuffers.clear();
     channelBuffers.resize(c);
     for (int i = 0; i < c; ++i)
-        channelBuffers[i].create(h, w, CV_32F);
-
-    for (const auto& n : inputNames)
-        context->setTensorAddress(n.c_str(), inputBindings[n]);
-    for (const auto& n : outputNames)
-        context->setTensorAddress(n.c_str(), outputBindings[n]);
-
-    if (config.verbose)
     {
-        std::cout << "[Detector] Initialized. ModelStatic=" << std::boolalpha << isStatic
-            << ", NetInput=" << h << "x" << w << " (scale=" << img_scale << ")" << std::endl;
+        channelBuffers[i].create(h, w, CV_32F);
+    }
+    for (const auto& name : inputNames)
+    {
+        context->setTensorAddress(name.c_str(), inputBindings[name]);
+    }
+    for (const auto& name : outputNames)
+    {
+        context->setTensorAddress(name.c_str(), outputBindings[name]);
     }
 }
 

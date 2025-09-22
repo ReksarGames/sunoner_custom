@@ -125,12 +125,12 @@ void MakcuConnection::click(int button = 0)
 
 void MakcuConnection::press(int button)
 {
-    sendCommand("km.left_down()");
+    sendCommand("km.left(1)");
 }
 
 void MakcuConnection::release(int button)
 {
-    sendCommand("km.left_up()");
+    sendCommand("km.left(0)");
 }
 
 void MakcuConnection::start_boot()

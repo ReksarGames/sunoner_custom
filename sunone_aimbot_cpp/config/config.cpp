@@ -80,7 +80,8 @@ bool Config::loadConfig(const std::string& filename)
         kalman_measurement_noise = 0.10f;
         kalman_speed_multiplier_x = 1.0;
         kalman_speed_multiplier_y = 1.0;
-
+        resetThreshold = 5;
+    
         predictionInterval = 0.01f;
         prediction_futurePositions = 20;
         draw_futurePositions = true;
@@ -202,6 +203,12 @@ bool Config::loadConfig(const std::string& filename)
         yellow.h_low = 30; yellow.s_low = 125; yellow.v_low = 150;
         yellow.h_high = 30; yellow.s_high = 255; yellow.v_high = 255;
         color_ranges.push_back(yellow);
+
+        ColorRange yellow2;
+        yellow2.name = "Yellow2";
+        yellow2.h_low = 20; yellow2.s_low = 100; yellow2.v_low = 120;
+        yellow2.h_high = 35; yellow2.s_high = 255; yellow2.v_high = 255;
+        color_ranges.push_back(yellow2);
 
         color_target = "Yellow";
 
@@ -331,6 +338,7 @@ bool Config::loadConfig(const std::string& filename)
     kalman_measurement_noise = (float)get_double("kalman_measurement_noise", 0.10);
     kalman_speed_multiplier_x = (float)get_double("kalman_speed_multiplier_x", 1.0);
     kalman_speed_multiplier_y = (float)get_double("kalman_speed_multiplier_y", 1.0);
+    resetThreshold = (float)get_double("resetThreshold", 5);
 
     predictionInterval = (float)get_double("predictionInterval", 0.01);
     prediction_futurePositions = get_long("prediction_futurePositions", 20);
@@ -539,7 +547,8 @@ bool Config::saveConfig(const std::string& filename)
         << "kalman_process_noise = " << kalman_process_noise << "\n"
         << "kalman_measurement_noise = " << kalman_measurement_noise << "\n"
         << "kalman_speed_multiplier_x = " << kalman_speed_multiplier_x << "\n"
-        << "kalman_speed_multiplier_y = " << kalman_speed_multiplier_y << "\n\n"
+        << "kalman_speed_multiplier_y = " << kalman_speed_multiplier_y << "\n"
+        << "resetThreshold = " << resetThreshold << "\n\n"
 
         << std::fixed << std::setprecision(2)
         << "predictionInterval = " << predictionInterval << "\n"

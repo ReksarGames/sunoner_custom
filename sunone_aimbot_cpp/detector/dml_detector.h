@@ -22,11 +22,6 @@ public:
     int getNumberOfClasses();
 
     std::chrono::duration<double, std::milli> lastInferenceTimeDML;
-    std::chrono::duration<double, std::milli> lastPreprocessTimeDML;
-    std::chrono::duration<double, std::milli> lastCopyTimeDML;
-    std::chrono::duration<double, std::milli> lastPostprocessTimeDML;
-    std::chrono::duration<double, std::milli> lastNmsTimeDML;
-
     std::condition_variable inferenceCV;
     std::atomic<bool> shouldExit = false;
 

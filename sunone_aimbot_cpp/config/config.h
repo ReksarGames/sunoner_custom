@@ -44,6 +44,7 @@ public:
     float kalman_measurement_noise;
     float kalman_speed_multiplier_x;
     float kalman_speed_multiplier_y;
+    float resetThreshold;
 
     float predictionInterval;
     int prediction_futurePositions;

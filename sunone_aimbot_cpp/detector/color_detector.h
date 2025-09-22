@@ -33,6 +33,7 @@ public:
     std::atomic<bool> shouldExit{ false };
     std::condition_variable inferenceCV;
 
+    float scanError = 0.1f;
 private:
     void detectColors(const cv::Mat& frame);
     void postProcess(const std::vector<cv::Rect>& boxes);
@@ -41,7 +42,9 @@ private:
     std::vector<ColorRange> colorRanges;
     int erodeIter = 1;
     int dilateIter = 2;
-    int minArea = 50;
+    int minArea = 1;
+    int tinyArea = 2;
+    bool isOnlyTop = true;
 
     std::atomic<bool> frameReady{ false };
     cv::Mat currentFrame;

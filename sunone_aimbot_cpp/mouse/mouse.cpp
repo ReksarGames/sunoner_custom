@@ -587,7 +587,7 @@ void MouseThread::moveMouseWithKalman(double targetX, double targetY) {
     double rawX = targetX, rawY = targetY;
     static double lastRawX = 0.0, lastRawY = 0.0;
     static bool   firstCall = true;
-    const double  resetThreshold = 3; // порог в пикселях, можно крутить в config
+    const double  resetThreshold = config.resetThreshold;
 
     // 0) Сброс при большом «прыжке» цели или первом вызове
     if (firstCall || std::hypot(rawX - lastRawX, rawY - lastRawY) > resetThreshold) {
@@ -628,11 +628,11 @@ void MouseThread::moveMouseWithKalmanAndSmoothing(double targetX, double targetY
     double rawX = targetX;
     double rawY = targetY;
 
-    const double resetThreshold = 5.0;
+    const double resetThreshold = config.resetThreshold;
 
     static double lastRawX = 0.0, lastRawY = 0.0;
     static bool firstCall = true;
-    auto now = std::chrono::steady_clock::now();
+    auto now = std::chrono::steady_clock::now();    
 
     if (firstCall || std::hypot(rawX - lastRawX, rawY - lastRawY) > resetThreshold) {
         kfX.x = rawX;  kfX.v = 0.0;  kfX.P = 1.0;
