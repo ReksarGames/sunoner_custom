@@ -693,7 +693,7 @@ void draw_mouse()
             input_method_changed.store(true);
         }
 
-        if (ImGui::Button("Run boot.py"))
+       /* if (ImGui::Button("Run boot.py"))
         {
             kmboxSerial->start_boot();
         }
@@ -706,7 +706,7 @@ void draw_mouse()
         if (ImGui::Button("Send Stop"))
         {
             kmboxSerial->send_stop();
-        }
+        }*/
     }
     else if (config.input_method == "KMBOX_NET")
     {
