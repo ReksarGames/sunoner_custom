@@ -97,29 +97,62 @@ void ColorDetector::detectColors(const cv::Mat& frame) {
     }
 
     // Немного расширим пятна, чтобы мелкие объекты не пропали
-    cv::dilate(combinedMask, combinedMask, cv::Mat(), cv::Point(-1, -1), 1);
+    cv::dilate(combinedMask, combinedMask, cv::Mat(), cv::Point(-1, -1), dilateIter);
 
     // Находим контуры на маске
     std::vector<std::vector<cv::Point>> contours;
-    cv::findContours(combinedMask.clone(), contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    cv::findContours(combinedMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
     // Вектор для хранения найденных прямоугольников
     std::vector<cv::Rect> boxes;
 
-    // Проходим по всем контурам
-    for (auto& c : contours) {
-        double area = cv::contourArea(c); // Вычисляем площадь контура
+    // Переменная для хранения самого верхнего объекта
+    cv::Rect topObject;
+    bool foundTopObject = false;
 
-        // Если площадь достаточна и объект не слишком маленький
-        if (area >= minArea) {
-            cv::Rect boundingBox = cv::boundingRect(c); // Получаем ограничивающий прямоугольник
+    // Если TopHead = true, ищем только самый верхний объект
+    if (isOnlyTop) {
+        for (auto& c : contours) {
+            double area = cv::contourArea(c); // Вычисляем площадь контура
 
-            // Пропускаем слишком маленькие объекты
-            if (area < tinyArea) {
-                continue;
+            // Если площадь достаточна и объект не слишком маленький
+            if (area >= minArea) {
+                cv::Rect boundingBox = cv::boundingRect(c); // Получаем ограничивающий прямоугольник
+
+                // Пропускаем слишком маленькие объекты
+                if (area < tinyArea) {
+                    continue;
+                }
+
+                // Если это первый объект, или он выше всех по Y, сохраняем его
+                if (topObject.area() == 0 || boundingBox.y < topObject.y) {
+                    topObject = boundingBox;
+                    foundTopObject = true;  // Устанавливаем флаг, что верхний объект найден
+                }
             }
+        }
 
-            boxes.push_back(boundingBox); // Добавляем прямоугольник в список
+        // Если был найден верхний объект, добавляем его в список
+        if (foundTopObject) {
+            boxes.push_back(topObject);
+        }
+    }
+    else {
+        // Если TopHead = false, обрабатываем все объекты как раньше
+        for (auto& c : contours) {
+            double area = cv::contourArea(c); // Вычисляем площадь контура
+
+            // Если площадь достаточна и объект не слишком маленький
+            if (area >= minArea) {
+                cv::Rect boundingBox = cv::boundingRect(c); // Получаем ограничивающий прямоугольник
+
+                // Пропускаем слишком маленькие объекты
+                if (area < tinyArea) {
+                    continue;
+                }
+
+                boxes.push_back(boundingBox); // Добавляем прямоугольник в список
+            }
         }
     }
 

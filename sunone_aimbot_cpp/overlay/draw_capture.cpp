@@ -56,7 +56,7 @@ void draw_capture_settings()
         config.saveConfig();
     }
 
-    if (ImGui::SliderInt("Capture FPS", &config.capture_fps, 0, 240))
+    if (ImGui::SliderInt("Capture FPS", &config.capture_fps, 0, 400))
     {
         capture_fps_changed.store(true);
         config.saveConfig();

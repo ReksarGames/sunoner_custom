@@ -210,6 +210,12 @@ bool Config::loadConfig(const std::string& filename)
         yellow2.h_high = 35; yellow2.s_high = 255; yellow2.v_high = 255;
         color_ranges.push_back(yellow2);
 
+        ColorRange purple;
+        purple.name = "Purple";
+        purple.h_low = 220; purple.s_low = 100; purple.v_low = 195;
+        purple.h_high = 255; purple.s_high = 195; purple.v_high = 255;
+        color_ranges.push_back(purple);
+
         color_target = "Yellow";
 
         // Debug

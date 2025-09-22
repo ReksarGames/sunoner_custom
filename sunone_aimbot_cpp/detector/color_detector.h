@@ -42,8 +42,8 @@ private:
     std::vector<ColorRange> colorRanges;
     int erodeIter = 1;
     int dilateIter = 2;
-    int minArea = 1;
-    int tinyArea = 2;
+    int minArea = 50;
+    int tinyArea = 10;
     bool isOnlyTop = true;
 
     std::atomic<bool> frameReady{ false };
