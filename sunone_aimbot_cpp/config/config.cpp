@@ -64,6 +64,7 @@ bool Config::loadConfig(const std::string& filename)
         head_y_offset = 0.05f;
         ignore_third_person = false;
         shooting_range_targets = false;
+        focusTarget = false;
         auto_aim = false;
 
         // Mouse
@@ -89,11 +90,7 @@ bool Config::loadConfig(const std::string& filename)
         snapRadius = 1.5f;
         nearRadius = 25.0f;
         speedCurveExponent = 3.0f;
-        snapBoostFactor = 1.15f;
-
-        ////  Makcu
-        //makcu_port = "COM3";           
-        //makcu_baudrate = 115200;       
+        snapBoostFactor = 1.15f; 
 
         // HID
         hid_vid = 0x1956;
@@ -110,20 +107,9 @@ bool Config::loadConfig(const std::string& filename)
         wind_M = 10.0f;
         wind_D = 8.0f;
 
-        //// Arduino
-        //arduino_baudrate = 115200;
-        //arduino_port = "COM0";
-        //arduino_16_bit_mouse = false;
-        //arduino_enable_keys = false;
-
         // kmbox_B
         kmbox_b_baudrate = 115200;
         kmbox_b_port = "COM0";
-
-        //// kmbox_net
-        //kmbox_net_ip = "10.42.42.42";
-        //kmbox_net_port = "1984";
-        //kmbox_net_uuid = "DEADC0DE";
 
         // Mouse shooting
         auto_shoot = false;
@@ -331,6 +317,7 @@ bool Config::loadConfig(const std::string& filename)
     head_y_offset = (float)get_double("head_y_offset", 0.05);
     ignore_third_person = get_bool("ignore_third_person", false);
     shooting_range_targets = get_bool("shooting_range_targets", false);
+    focusTarget = get_bool("focusTarget", false);
     auto_aim = get_bool("auto_aim", false);
 
     // Mouse
@@ -358,10 +345,6 @@ bool Config::loadConfig(const std::string& filename)
     speedCurveExponent = (float)get_double("speedCurveExponent", 3.0);
     snapBoostFactor = (float)get_double("snapBoostFactor", 1.15);
 
-    //  Makcu
-    //makcu_port = get_string("makcu_port", "COM1");          
-    //makcu_baudrate = get_long("makcu_baudrate", 115200);   
-
     // Easynorecoil
     easynorecoil = get_bool("easynorecoil", false);
     easynorecoilstrength = (float)get_double("easynorecoilstrength", 0.0);
@@ -374,20 +357,9 @@ bool Config::loadConfig(const std::string& filename)
     wind_M = (float)get_double("wind_M", 10.0f);
     wind_D = (float)get_double("wind_D", 8.0f);
 
-    //// Arduino
-    //arduino_baudrate = get_long("arduino_baudrate", 115200);
-    //arduino_port = get_string("arduino_port", "COM0");
-    //arduino_16_bit_mouse = get_bool("arduino_16_bit_mouse", false);
-    //arduino_enable_keys = get_bool("arduino_enable_keys", false);
-
     // kmbox_B
     kmbox_b_baudrate = get_long("kmbox_baudrate", 115200);
     kmbox_b_port = get_string("kmbox_port", "COM0");
-
-    //// kmbox_net
-    //kmbox_net_ip = get_string("kmbox_net_ip", "10.42.42.42");
-    //kmbox_net_port = get_string("kmbox_net_port", "1984");
-    //kmbox_net_uuid = get_string("kmbox_net_uuid", "DEADC0DE");
 
     // Mouse shooting
     auto_shoot = get_bool("auto_shoot", false);
@@ -546,6 +518,7 @@ bool Config::saveConfig(const std::string& filename)
         << "head_y_offset = " << head_y_offset << "\n"
         << "ignore_third_person = " << (ignore_third_person ? "true" : "false") << "\n"
         << "shooting_range_targets = " << (shooting_range_targets ? "true" : "false") << "\n"
+        << "focusTarget = " << (focusTarget ? "true" : "false") << "\n"
         << "auto_aim = " << (auto_aim ? "true" : "false") << "\n\n";
 
     // Mouse
@@ -589,34 +562,15 @@ bool Config::saveConfig(const std::string& filename)
         << "wind_M = " << wind_M << "\n"
         << "wind_D = " << wind_D << "\n\n";
 
-    //// Makcu
-    //file << "# Makcu\n"
-    //    << "makcu_port = " << makcu_port << "\n"
-    //    << "makcu_baudrate = " << makcu_baudrate << "\n\n";
-
     // HID
     file << "# HID\n"
         << "hid_vid = 0x1956\n"
         << "hid_pid = 0x3001\n\n";
 
-
-    //// Arduino
-    //file << "# Arduino\n"
-    //    << "arduino_baudrate = " << arduino_baudrate << "\n"
-    //    << "arduino_port = " << arduino_port << "\n"
-    //    << "arduino_16_bit_mouse = " << (arduino_16_bit_mouse ? "true" : "false") << "\n"
-    //    << "arduino_enable_keys = " << (arduino_enable_keys ? "true" : "false") << "\n\n";
-
     // kmbox_B
     file << "# Kmbox_B\n"
         << "kmbox_baudrate = " << kmbox_b_baudrate << "\n"
         << "kmbox_port = " << kmbox_b_port << "\n\n";
-
-    //// kmbox_net
-    //file << "# Kmbox_net\n"
-    //    << "kmbox_net_ip = " << kmbox_net_ip << "\n"
-    //    << "kmbox_net_port = " << kmbox_net_port << "\n"
-    //    << "kmbox_net_uuid = " << kmbox_net_uuid << "\n\n";
 
     // Mouse shooting
     file << "# Mouse shooting\n"

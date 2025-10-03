@@ -252,7 +252,7 @@ void mouseThreadFunction(MouseThread& mouseThread)
     static bool hasLastTarget = false;
 
     // Булевое значение для выбора фиксированной или обычной наводки
-    bool fixTarget = true;  // Это значение можно изменять в конфиге или вручную
+    bool fixTarget = config.focusTarget;  // Это значение можно изменять в конфиге или вручную
 
     while (!shouldExit)
     {
@@ -298,21 +298,21 @@ void mouseThreadFunction(MouseThread& mouseThread)
             detection_resolution_changed.store(false);
         }
 
-        // 🧠 ЛОГ ЦЕЛЕЙ — если целей больше 1, логируем их координаты
-        if (boxes.size() > 1)
-        {
-            std::cout << "[LOG] Multiple targets detected: " << boxes.size() << std::endl;
-            for (size_t i = 0; i < boxes.size(); ++i)
-            {
-                std::cout << "  Target " << i + 1
-                    << " => x: " << boxes[i].x
-                    << " y: " << boxes[i].y
-                    << " w: " << boxes[i].width
-                    << " h: " << boxes[i].height << std::endl;
-            }
-        }
+        //// ЛОГ ЦЕЛЕЙ — если целей больше 1, логируем их координаты
+        //if (boxes.size() > 1)
+        //{
+        //    std::cout << "[LOG] Multiple targets detected: " << boxes.size() << std::endl;
+        //    for (size_t i = 0; i < boxes.size(); ++i)
+        //    {
+        //        std::cout << "  Target " << i + 1
+        //            << " => x: " << boxes[i].x
+        //            << " y: " << boxes[i].y
+        //            << " w: " << boxes[i].width
+        //            << " h: " << boxes[i].height << std::endl;
+        //    }
+        //}
 
-        // 📌 Если целей несколько и fixTarget включен, зафиксируем ближайшую к предыдущей, чтобы не дёргался
+        // Если целей несколько и fixTarget включен, зафиксируем ближайшую к предыдущей, чтобы не дёргался
         if (fixTarget && boxes.size() > 1 && hasLastTarget)
         {
             cv::Rect best = boxes[0];
@@ -331,7 +331,7 @@ void mouseThreadFunction(MouseThread& mouseThread)
             std::cout << "[LOG] Target locked on previous one." << std::endl;
         }
 
-        // 🧠 Стандартный выбор цели (если fixTarget выключен, выбираем любую цель)
+        // Стандартный выбор цели (если fixTarget выключен, выбираем любую цель)
         AimbotTarget* target = sortTargets(
             boxes,
             classes,
@@ -363,7 +363,7 @@ void mouseThreadFunction(MouseThread& mouseThread)
             hasLastTarget = false;
         }
 
-        // 🧭 Наводка (всё остаётся как было)
+        // Наводка (всё остаётся как было)
         if (aiming)
         {
             if (target)

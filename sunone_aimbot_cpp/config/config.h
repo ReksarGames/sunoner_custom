@@ -28,6 +28,7 @@ public:
     float head_y_offset;
     bool ignore_third_person;
     bool shooting_range_targets;
+    bool focusTarget;
     bool auto_aim;
 
     // Mouse
