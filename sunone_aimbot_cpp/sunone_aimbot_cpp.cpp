@@ -251,6 +251,9 @@ void mouseThreadFunction(MouseThread& mouseThread)
     static cv::Rect lastTargetBox;
     static bool hasLastTarget = false;
 
+    // Булевое значение для выбора фиксированной или обычной наводки
+    bool fixTarget = true;  // Это значение можно изменять в конфиге или вручную
+
     while (!shouldExit)
     {
         std::vector<cv::Rect> boxes;
@@ -309,8 +312,8 @@ void mouseThreadFunction(MouseThread& mouseThread)
             }
         }
 
-        // 📌 Если целей несколько — зафиксируем ближайшую к предыдущей, чтобы не дёргался
-        if (boxes.size() > 1 && hasLastTarget)
+        // 📌 Если целей несколько и fixTarget включен, зафиксируем ближайшую к предыдущей, чтобы не дёргался
+        if (fixTarget && boxes.size() > 1 && hasLastTarget)
         {
             cv::Rect best = boxes[0];
             double bestDist = std::hypot(best.x - lastTargetBox.x, best.y - lastTargetBox.y);
@@ -328,7 +331,7 @@ void mouseThreadFunction(MouseThread& mouseThread)
             std::cout << "[LOG] Target locked on previous one." << std::endl;
         }
 
-        // 🧠 Стандартный выбор цели
+        // 🧠 Стандартный выбор цели (если fixTarget выключен, выбираем любую цель)
         AimbotTarget* target = sortTargets(
             boxes,
             classes,
@@ -360,7 +363,7 @@ void mouseThreadFunction(MouseThread& mouseThread)
             hasLastTarget = false;
         }
 
-        // 🧭 Наводка
+        // 🧭 Наводка (всё остаётся как было)
         if (aiming)
         {
             if (target)
