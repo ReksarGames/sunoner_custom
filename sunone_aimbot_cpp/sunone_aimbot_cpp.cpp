@@ -298,21 +298,37 @@ void mouseThreadFunction(MouseThread& mouseThread)
             detection_resolution_changed.store(false);
         }
 
-        //// ЛОГ ЦЕЛЕЙ — если целей больше 1, логируем их координаты
-        //if (boxes.size() > 1)
-        //{
-        //    std::cout << "[LOG] Multiple targets detected: " << boxes.size() << std::endl;
-        //    for (size_t i = 0; i < boxes.size(); ++i)
-        //    {
-        //        std::cout << "  Target " << i + 1
-        //            << " => x: " << boxes[i].x
-        //            << " y: " << boxes[i].y
-        //            << " w: " << boxes[i].width
-        //            << " h: " << boxes[i].height << std::endl;
-        //    }
-        //}
+        // Центр экрана
+        int screenCenterX = config.detection_resolution / 2;
+        int screenCenterY = config.detection_resolution / 2;
 
-        // Если целей несколько и fixTarget включен, зафиксируем ближайшую к предыдущей, чтобы не дёргался
+        // Если fixTarget включен и нет последней цели, фиксируем ближайшую к центру
+        if (fixTarget && !hasLastTarget && !boxes.empty())
+        {
+            cv::Rect best = boxes[0];
+            double bestDist = std::hypot(best.x + best.width / 2 - screenCenterX, best.y + best.height / 2 - screenCenterY);
+
+            // Ищем ближайшую цель к центру экрана
+            for (auto& box : boxes)
+            {
+                double dist = std::hypot(box.x + box.width / 2 - screenCenterX, box.y + box.height / 2 - screenCenterY);
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    best = box;
+                }
+            }
+
+            // Сохраняем выбранную цель как последнюю и фиксируем её
+            lastTargetBox = best;
+            hasLastTarget = true;
+            boxes.clear();
+            boxes.push_back(best);
+
+            std::cout << "[LOG] First target locked on center." << std::endl;
+        }
+
+        // Если fixTarget включен и уже есть последняя цель, зафиксируем ближайшую к предыдущей, чтобы не дергался
         if (fixTarget && boxes.size() > 1 && hasLastTarget)
         {
             cv::Rect best = boxes[0];

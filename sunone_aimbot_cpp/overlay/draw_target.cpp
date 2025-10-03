@@ -20,6 +20,7 @@ float prev_body_y_offset = config.body_y_offset;
 float prev_head_y_offset = config.head_y_offset;
 bool prev_ignore_third_person = config.ignore_third_person;
 bool prev_shooting_range_targets = config.shooting_range_targets;
+bool prev_focuse_target = config.focusTarget;
 bool prev_auto_aim = config.auto_aim;
 bool prev_easynorecoil = config.easynorecoil;
 float prev_easynorecoilstrength = config.easynorecoilstrength;
@@ -70,6 +71,7 @@ void draw_target()
     ImGui::Separator();
     ImGui::Checkbox("Ignore Third Person", &config.ignore_third_person);
     ImGui::Checkbox("Shooting range targets", &config.shooting_range_targets);
+    ImGui::Checkbox("Focuse Target", &config.focusTarget);
     ImGui::Checkbox("Auto Aim", &config.auto_aim);
 
     if (prev_disable_headshot != config.disable_headshot ||
@@ -77,6 +79,7 @@ void draw_target()
         prev_head_y_offset != config.head_y_offset ||
         prev_ignore_third_person != config.ignore_third_person ||
         prev_shooting_range_targets != config.shooting_range_targets ||
+        prev_focuse_target != config.focusTarget ||
         prev_auto_aim != config.auto_aim ||
         prev_easynorecoil != config.easynorecoil ||
         prev_easynorecoilstrength != config.easynorecoilstrength)
@@ -86,6 +89,7 @@ void draw_target()
         prev_head_y_offset = config.head_y_offset;
         prev_ignore_third_person = config.ignore_third_person;
         prev_shooting_range_targets = config.shooting_range_targets;
+        prev_focuse_target = config.focusTarget;
         prev_auto_aim = config.auto_aim;
         prev_easynorecoil = config.easynorecoil;
         prev_easynorecoilstrength = config.easynorecoilstrength;

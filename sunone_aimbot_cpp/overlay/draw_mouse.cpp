@@ -27,8 +27,9 @@ float prev_snapBoostFactor = config.snapBoostFactor;
 int prev_smoothness = config.smoothness;
 static bool  prev_use_smoothing = config.use_smoothing;
 static bool  prev_use_kalman = config.use_kalman;
-static float prev_kalman_process_noise = config.kalman_process_noise;
-static float prev_kalman_measure_noise = config.kalman_measurement_noise;
+// TODO: проверить static, focuse_target не обновляется, только после перезапуска.
+float prev_kalman_process_noise = config.kalman_process_noise;
+float prev_kalman_measure_noise = config.kalman_measurement_noise;
 
 bool  prev_wind_mouse_enabled = config.wind_mouse_enabled;
 float prev_wind_G = config.wind_G;
