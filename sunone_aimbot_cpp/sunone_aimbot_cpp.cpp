@@ -247,6 +247,10 @@ void mouseThreadFunction(MouseThread& mouseThread)
 {
     int lastVersion = -1;
 
+    // Храним ID последней цели, чтобы не дёргался на нескольких
+    static cv::Rect lastTargetBox;
+    static bool hasLastTarget = false;
+
     while (!shouldExit)
     {
         std::vector<cv::Rect> boxes;
@@ -287,11 +291,44 @@ void mouseThreadFunction(MouseThread& mouseThread)
                 mouseThread.setUseSmoothing(config.use_smoothing);
                 mouseThread.setUseKalman(config.use_kalman);
                 mouseThread.setSmoothnessValue(config.smoothness);
-
             }
             detection_resolution_changed.store(false);
         }
 
+        // 🧠 ЛОГ ЦЕЛЕЙ — если целей больше 1, логируем их координаты
+        if (boxes.size() > 1)
+        {
+            std::cout << "[LOG] Multiple targets detected: " << boxes.size() << std::endl;
+            for (size_t i = 0; i < boxes.size(); ++i)
+            {
+                std::cout << "  Target " << i + 1
+                    << " => x: " << boxes[i].x
+                    << " y: " << boxes[i].y
+                    << " w: " << boxes[i].width
+                    << " h: " << boxes[i].height << std::endl;
+            }
+        }
+
+        // 📌 Если целей несколько — зафиксируем ближайшую к предыдущей, чтобы не дёргался
+        if (boxes.size() > 1 && hasLastTarget)
+        {
+            cv::Rect best = boxes[0];
+            double bestDist = std::hypot(best.x - lastTargetBox.x, best.y - lastTargetBox.y);
+            for (auto& box : boxes)
+            {
+                double dist = std::hypot(box.x - lastTargetBox.x, box.y - lastTargetBox.y);
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    best = box;
+                }
+            }
+            boxes.clear();
+            boxes.push_back(best);
+            std::cout << "[LOG] Target locked on previous one." << std::endl;
+        }
+
+        // 🧠 Стандартный выбор цели
         AimbotTarget* target = sortTargets(
             boxes,
             classes,
@@ -305,6 +342,10 @@ void mouseThreadFunction(MouseThread& mouseThread)
             mouseThread.setLastTargetTime(std::chrono::steady_clock::now());
             mouseThread.setTargetDetected(true);
 
+            // сохраняем как «последнюю» цель
+            lastTargetBox = cv::Rect((int)target->x, (int)target->y, (int)target->w, (int)target->h);
+            hasLastTarget = true;
+
             auto futurePositions = mouseThread.predictFuturePositions(
                 target->pivotX,
                 target->pivotY,
@@ -316,8 +357,10 @@ void mouseThreadFunction(MouseThread& mouseThread)
         {
             mouseThread.clearFuturePositions();
             mouseThread.setTargetDetected(false);
+            hasLastTarget = false;
         }
 
+        // 🧭 Наводка
         if (aiming)
         {
             if (target)
@@ -346,12 +389,12 @@ void mouseThreadFunction(MouseThread& mouseThread)
         }
 
         handleEasyNoRecoil(mouseThread);
-
         mouseThread.checkAndResetPredictions();
 
         delete target;
     }
 }
+
 
 int main()
 {
